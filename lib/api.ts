@@ -1,5 +1,4 @@
-export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
+export const API_BASE_URL = normalizeBaseUrl(process.env.NEXT_PUBLIC_API_BASE_URL ?? "https://noblifi.uc.r.appspot.com");
 
 type FetchOptions = RequestInit & {
   fallback?: unknown;
@@ -59,46 +58,20 @@ export function bootstrapScript(token: string, baseUrl?: string) {
 
   return `:global claimToken "${token}"
 :global baseUrl "${provisioningUrl}"
-:global fetchMode "${fetchMode}"
 
 /system identity set name=("noblifi-pending-" . $claimToken)
 
 :global serial [/system routerboard get serial-number]
 :global model [/system routerboard get model]
 :global version [/system resource get version]
-:global ifaceJson ""
 
-:foreach iface in=[/interface find] do={
-  :local name [/interface get $iface name]
-  :local type [/interface get $iface type]
-  :local mac ""
-
-  :do {
-    :set mac [/interface get $iface mac-address]
-  } on-error={
-    :set mac ""
-  }
-
-  :local running [/interface get $iface running]
-  :local disabled [/interface get $iface disabled]
-
-  :if ([:len $ifaceJson] > 0) do={
-    :set ifaceJson ($ifaceJson . ",")
-  }
-
-  :set ifaceJson ($ifaceJson . "{\\"name\\":\\"" . $name . "\\",\\"type\\":\\"" . $type . "\\",\\"mac_address\\":\\"" . $mac . "\\",\\"running\\":" . $running . ",\\"disabled\\":" . $disabled . "}")
-}
-
-:global payload ("{\\"claim_token\\":\\"" . $claimToken . "\\",\\"serial_number\\":\\"" . $serial . "\\",\\"model\\":\\"" . $model . "\\",\\"routeros_version\\":\\"" . $version . "\\",\\"interfaces\\":[" . $ifaceJson . "]}")
-
-:global checkInUrl ($baseUrl . "/check-in")
+:global checkInUrl ($baseUrl . "/check-in?token=" . $claimToken . "&serial=" . $serial . "&model=" . $model . "&routeros_version=" . $version)
 :global statusUrl ($baseUrl . "/status?token=" . $claimToken . "&serial=" . $serial . "&status=linked")
 
 :put ("NobliFi check-in URL: " . $checkInUrl)
 :put ("NobliFi status URL: " . $statusUrl)
 
-/tool fetch url=$checkInUrl mode=$fetchMode http-method=post http-header-field="Content-Type: application/json" http-data=$payload keep-result=no
-
+/tool fetch url=$checkInUrl mode=$fetchMode keep-result=no
 /tool fetch url=$statusUrl mode=$fetchMode keep-result=no
 
 :put "NobliFi router linked. Return to the dashboard and choose automatic or manual setup."`;
