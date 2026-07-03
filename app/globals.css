@@ -1,0 +1,119 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  --app: #050b12;
+  --panel: #0b1420;
+  --soft: #101d2c;
+  --ink: #f8fbff;
+  --muted: #9aa8ba;
+  --line: #1f3044;
+  --brand: #7dd3fc;
+  --brand-hover: #38bdf8;
+  --accent: #34d399;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --app: #f6f8fb;
+  --panel: #ffffff;
+  --soft: #eef3f8;
+  --ink: #172033;
+  --muted: #647083;
+  --line: #dbe3ef;
+  --brand: #176b87;
+  --brand-hover: #12566d;
+  --accent: #e0a458;
+}
+
+:root[data-theme="light-blue"] {
+  color-scheme: light;
+  --app: #eef8ff;
+  --panel: #ffffff;
+  --soft: #dff0ff;
+  --ink: #14304a;
+  --muted: #5f7891;
+  --line: #bddcf4;
+  --brand: #1888c9;
+  --brand-hover: #0f6fa8;
+  --accent: #38bdf8;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--app);
+  color: var(--ink);
+}
+
+input,
+select,
+button,
+textarea {
+  font: inherit;
+}
+
+.field {
+  @apply w-full rounded-md px-3 py-2 text-sm shadow-sm outline-none transition;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink);
+}
+
+.btn {
+  @apply inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-semibold text-white shadow-sm transition disabled:cursor-not-allowed disabled:opacity-60;
+  background: var(--brand);
+}
+
+.btn:hover {
+  background: var(--brand-hover);
+}
+
+.btn-secondary {
+  @apply inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-semibold shadow-sm transition;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink);
+}
+
+.btn-secondary:hover {
+  background: var(--soft);
+}
+
+.panel {
+  @apply rounded-lg shadow-sm;
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.bg-app {
+  background: var(--app);
+}
+
+.bg-panel {
+  background: var(--panel);
+}
+
+.bg-soft {
+  background: var(--soft);
+}
+
+.text-ink {
+  color: var(--ink);
+}
+
+.text-muted {
+  color: var(--muted);
+}
+
+.text-brand {
+  color: var(--brand);
+}
+
+.border-line {
+  border-color: var(--line);
+}
