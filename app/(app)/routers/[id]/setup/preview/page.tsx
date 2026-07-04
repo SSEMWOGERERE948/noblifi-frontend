@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { use, useEffect, useState } from "react";
@@ -21,10 +21,17 @@ export default function PreviewPage({ params }: { params: Promise<{ id: string }
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [deploying, setDeploying] = useState(false);
+  const [installCommand, setInstallCommand] = useState("");
 
   useEffect(() => {
-    apiGet<ConfigPreview>(`/api/v1/routers/${id}/config-preview`)
-      .then(setPreview)
+    Promise.all([
+      apiGet<ConfigPreview>(`/api/v1/routers/${id}/config-preview`),
+      apiGet<{ script: string }>(`/api/v1/routers/${id}/config-install-command`)
+    ])
+      .then(([previewData, commandData]) => {
+        setPreview(previewData);
+        setInstallCommand(commandData.script);
+      })
       .catch((err) => setError(err instanceof Error ? err.message : "Could not load preview."));
   }, [id]);
 
@@ -57,7 +64,10 @@ export default function PreviewPage({ params }: { params: Promise<{ id: string }
         </div>
         <section>
           <h2 className="mb-3 text-lg font-semibold text-ink">Generated RouterOS Script</h2>
-          <p className="mb-3 rounded-md border border-line bg-white/5 p-3 text-sm text-muted">Install this service setup by downloading <strong>noblifi-config.rsc</strong>, uploading it to MikroTik Files, then running <code>/import file-name=noblifi-config.rsc</code>. The script includes the RADIUS and HotSpot section near the bottom.</p>
+          <p className="mb-3 rounded-md border border-line bg-white/5 p-3 text-sm text-muted">Run this command in the MikroTik terminal to fetch <strong>noblifi-config.rsc</strong> from NobliFi and import it automatically. The imported script configures RADIUS, NAT, bridges, DHCP, and HotSpot.</p>
+          <div className="mb-5">
+            <CodeBlock code={installCommand || "Loading install command..."} />
+          </div>
           <CodeBlock code={preview?.script ?? "Loading..."} filename="noblifi-config.rsc" />
         </section>
         <div className="flex flex-wrap gap-3">
@@ -75,3 +85,5 @@ export default function PreviewPage({ params }: { params: Promise<{ id: string }
     </SetupShell>
   );
 }
+
+
