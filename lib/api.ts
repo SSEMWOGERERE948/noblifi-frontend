@@ -63,7 +63,9 @@ export function bootstrapScript(token: string, baseUrl?: string) {
 
 :global serial [/system routerboard get serial-number]
 :global model [/system routerboard get model]
-:global version [/system resource get version]
+
+:global versionRaw [/system resource get version]
+:global version [:pick $versionRaw 0 [:find $versionRaw " "]]
 
 :global checkInUrl ($baseUrl . "/check-in?token=" . $claimToken . "&serial=" . $serial . "&model=" . $model . "&routeros_version=" . $version)
 :global statusUrl ($baseUrl . "/status?token=" . $claimToken . "&serial=" . $serial . "&status=linked")
@@ -71,8 +73,8 @@ export function bootstrapScript(token: string, baseUrl?: string) {
 :put ("NobliFi check-in URL: " . $checkInUrl)
 :put ("NobliFi status URL: " . $statusUrl)
 
-/tool fetch url=$checkInUrl mode=$fetchMode keep-result=no
-/tool fetch url=$statusUrl mode=$fetchMode keep-result=no
+/tool fetch url=$checkInUrl mode=${fetchMode} keep-result=no
+/tool fetch url=$statusUrl mode=${fetchMode} keep-result=no
 
 :put "NobliFi router linked. Return to the dashboard and choose automatic or manual setup."`;
 }
