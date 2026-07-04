@@ -32,7 +32,13 @@ export default function TopologyPage({ params }: { params: Promise<{ id: string 
         setAssignments(() => {
           const seeded: Record<string, string> = {};
           next.forEach((iface, index) => {
-            seeded[iface.name] = index === 0 ? "WAN" : "HOTSPOT_LAN";
+            if (index === 0) {
+              seeded[iface.name] = "WAN";
+            } else if (next.length >= 3 && index === next.length - 1) {
+              seeded[iface.name] = "STAFF_LAN";
+            } else {
+              seeded[iface.name] = "HOTSPOT_LAN";
+            }
           });
           return seeded;
         });
@@ -67,6 +73,7 @@ export default function TopologyPage({ params }: { params: Promise<{ id: string 
     const names = new Set<string>();
     let wan = 0;
     let hotspot = 0;
+    let staff = 0;
     for (const iface of interfaces) {
       const role = assignments[iface.name];
       if (names.has(iface.name)) return `Duplicate interface ${iface.name}.`;
@@ -75,9 +82,11 @@ export default function TopologyPage({ params }: { params: Promise<{ id: string 
       if (iface.disabled && (role === "WAN" || role === "HOTSPOT_LAN")) return `${iface.name} is disabled and cannot be used for ${role}.`;
       if (role === "WAN") wan++;
       if (role === "HOTSPOT_LAN") hotspot++;
+      if (role === "STAFF_LAN") staff++;
     }
     if (wan !== 1) return "Exactly one WAN interface is required.";
     if (hotspot < 1) return "At least one HOTSPOT_LAN interface is required.";
+    if (interfaces.length >= 3 && staff < 1) return "Reserve at least one STAFF_LAN interface for management access before applying HotSpot.";
     return "";
   }
 
@@ -122,4 +131,5 @@ export default function TopologyPage({ params }: { params: Promise<{ id: string 
     </SetupShell>
   );
 }
+
 
