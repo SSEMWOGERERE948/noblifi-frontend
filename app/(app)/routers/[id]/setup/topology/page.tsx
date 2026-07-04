@@ -7,6 +7,14 @@ import { apiGet, apiPut, InterfaceInfo } from "@/lib/router-setup";
 
 const roles = ["WAN", "HOTSPOT_LAN", "STAFF_LAN", "POS_LAN", "CCTV_LAN", "DISABLED"];
 
+function isAssignableInterface(iface: InterfaceInfo) {
+  const type = (iface.type ?? "").toLowerCase();
+  const name = iface.name.toLowerCase();
+  if (type.includes("bridge") || name.includes("bridge") || name.startsWith("br-")) return false;
+  if (type.includes("loopback") || type.includes("tunnel")) return false;
+  return true;
+}
+
 export default function TopologyPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
@@ -19,14 +27,12 @@ export default function TopologyPage({ params }: { params: Promise<{ id: string 
   useEffect(() => {
     apiGet<{ interfaces: InterfaceInfo[] }>(`/api/v1/routers/${id}/interfaces`)
       .then((data) => {
-        const next = data.interfaces;
+        const next = data.interfaces.filter(isAssignableInterface);
         setInterfaces(next);
-        setAssignments((current) => {
-          const seeded = { ...current };
+        setAssignments(() => {
+          const seeded: Record<string, string> = {};
           next.forEach((iface, index) => {
-            if (!seeded[iface.name]) {
-              seeded[iface.name] = index === 0 ? "WAN" : index < 3 ? "HOTSPOT_LAN" : "DISABLED";
-            }
+            seeded[iface.name] = index === 0 ? "WAN" : "HOTSPOT_LAN";
           });
           return seeded;
         });
@@ -81,7 +87,7 @@ export default function TopologyPage({ params }: { params: Promise<{ id: string 
         {loading ? <p className="text-sm text-muted">Loading interfaces...</p> : null}
         {!loading && !interfaces.length ? (
           <p className="rounded-md border border-line bg-white/5 p-4 text-sm text-muted">
-            No real MikroTik interfaces have been discovered for this router yet. Go back to Remote Access, run the registration script on the MikroTik, then return here.
+            No assignable MikroTik ports were discovered. If this router is linked, refresh after the bootstrap script reports ether interfaces.
           </p>
         ) : null}
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">

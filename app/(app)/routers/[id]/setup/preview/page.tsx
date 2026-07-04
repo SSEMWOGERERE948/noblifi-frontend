@@ -34,7 +34,7 @@ export default function PreviewPage({ params }: { params: Promise<{ id: string }
     setSuccess("");
     try {
       const response = await apiPost<{ message: string; status: string }>(`/api/v1/routers/${id}/deploy`);
-      setSuccess(response.message);
+      setSuccess(`${response.message}. Download noblifi-config.rsc below and import it on the MikroTik to install RADIUS, NAT, bridges, DHCP, and HotSpot.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not queue deployment.");
     } finally {
@@ -43,7 +43,7 @@ export default function PreviewPage({ params }: { params: Promise<{ id: string }
   }
 
   return (
-    <SetupShell title="Config Preview" description="Review the generated RouterOS script before queueing deployment." current="preview">
+    <SetupShell title="Config Preview" description="Review and download the RouterOS service setup script." current="preview">
       <div className="space-y-6">
         {error ? <p className="rounded-md border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{error}</p> : null}
         {success ? <p className="rounded-md border border-emerald-400/40 bg-emerald-400/10 p-3 text-sm font-semibold text-emerald-300">{success}</p> : null}
@@ -57,6 +57,7 @@ export default function PreviewPage({ params }: { params: Promise<{ id: string }
         </div>
         <section>
           <h2 className="mb-3 text-lg font-semibold text-ink">Generated RouterOS Script</h2>
+          <p className="mb-3 rounded-md border border-line bg-white/5 p-3 text-sm text-muted">Install this service setup by downloading <strong>noblifi-config.rsc</strong>, uploading it to MikroTik Files, then running <code>/import file-name=noblifi-config.rsc</code>. The script includes the RADIUS and HotSpot section near the bottom.</p>
           <CodeBlock code={preview?.script ?? "Loading..."} filename="noblifi-config.rsc" />
         </section>
         <div className="flex flex-wrap gap-3">
@@ -67,7 +68,7 @@ export default function PreviewPage({ params }: { params: Promise<{ id: string }
             Edit Network Profile
           </Link>
           <button type="button" className="btn" onClick={deploy} disabled={deploying}>
-            {deploying ? "Queueing..." : "Apply Configuration"}
+            {deploying ? "Queueing..." : "Mark Queued"}
           </button>
         </div>
       </div>
