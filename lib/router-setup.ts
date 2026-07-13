@@ -3,6 +3,7 @@ import { API_BASE_URL } from "@/lib/api";
 export type InterfaceInfo = {
   name: string;
   type?: string;
+  mac_address?: string | null;
   running: boolean;
   disabled: boolean;
 };
