@@ -45,7 +45,7 @@ export default function PlansPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold text-ink">Plans</h1>
+      <h1 className="text-2xl font-semibold text-ink">Packages</h1>
       <form onSubmit={submit} className="panel mt-6 grid gap-4 p-5 md:grid-cols-3">
         {[
           ["name", "Name"],
@@ -62,7 +62,7 @@ export default function PlansPage() {
         ))}
         <div className="md:col-span-3">
           <button className="btn" type="submit">
-            Create plan
+            Create package
           </button>
         </div>
       </form>

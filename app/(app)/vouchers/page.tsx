@@ -4,13 +4,14 @@ import { FormEvent, useEffect, useState } from "react";
 import { API_BASE_URL } from "@/lib/api";
 
 type Voucher = { id: string; code: string; status: string; plan_id: string };
-type Plan = { id: string; name: string };
+type Plan = { id: string; name: string; price: number; duration_minutes: number; download_speed: string; upload_speed: string };
 
 export default function VouchersPage() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [vouchers, setVouchers] = useState<Voucher[]>([]);
   const [planId, setPlanId] = useState("");
   const [quantity, setQuantity] = useState("10");
+  const planById = new Map(plans.map((plan) => [plan.id, plan]));
 
   useEffect(() => {
     fetch(`${API_BASE_URL}/api/v1/plans`)
@@ -44,11 +45,11 @@ export default function VouchersPage() {
       <h1 className="text-2xl font-semibold text-ink">Vouchers</h1>
       <form onSubmit={submit} className="panel mt-6 flex flex-col gap-4 p-5 md:flex-row md:items-end">
         <label className="flex-1 text-sm font-medium text-ink">
-          Plan
+          Package
           <select className="field mt-2" value={planId} onChange={(e) => setPlanId(e.target.value)}>
             {plans.map((plan) => (
               <option key={plan.id} value={plan.id}>
-                {plan.name}
+                {plan.name} - UGX {plan.price.toLocaleString()}
               </option>
             ))}
           </select>
@@ -57,18 +58,24 @@ export default function VouchersPage() {
           Quantity
           <input className="field mt-2" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
         </label>
-        <button className="btn" type="submit">
+        <button className="btn" type="submit" disabled={!planId}>
           Generate
         </button>
       </form>
       <div className="panel mt-6 divide-y divide-line">
         {vouchers.map((voucher) => (
-          <div key={voucher.id} className="grid gap-3 p-4 text-sm md:grid-cols-3">
+          <div key={voucher.id} className="grid gap-3 p-4 text-sm md:grid-cols-4">
             <span className="font-mono font-semibold text-ink">{voucher.code}</span>
+            <span className="text-muted">{planById.get(voucher.plan_id)?.name ?? voucher.plan_id}</span>
+            <span className="text-muted">
+              {planById.get(voucher.plan_id)
+                ? `${planById.get(voucher.plan_id)?.duration_minutes} min - ${planById.get(voucher.plan_id)?.download_speed} down`
+                : "Package details unavailable"}
+            </span>
             <span className="text-muted">{voucher.status}</span>
-            <span className="text-muted">{voucher.plan_id}</span>
           </div>
         ))}
+        {vouchers.length === 0 && <div className="p-4 text-sm text-muted">No vouchers generated yet.</div>}
       </div>
     </div>
   );

@@ -24,15 +24,20 @@ export default function PreviewPage({ params }: { params: Promise<{ id: string }
   const [installCommand, setInstallCommand] = useState("");
 
   useEffect(() => {
-    Promise.all([
-      apiGet<ConfigPreview>(`/api/v1/routers/${id}/config-preview`),
-      apiGet<{ script: string }>(`/api/v1/routers/${id}/config-install-command`)
-    ])
-      .then(([previewData, commandData]) => {
+    setError("");
+    setPreview(null);
+    setInstallCommand("");
+
+    apiGet<ConfigPreview>(`/api/v1/routers/${id}/config-preview`)
+      .then(async (previewData) => {
         setPreview(previewData);
+        const commandData = await apiGet<{ script: string }>(`/api/v1/routers/${id}/config-install-command`);
         setInstallCommand(commandData.script);
       })
-      .catch((err) => setError(err instanceof Error ? err.message : "Could not load preview."));
+      .catch((err) => {
+        setInstallCommand("");
+        setError(err instanceof Error ? err.message : "Could not load preview.");
+      });
   }, [id]);
 
   async function deploy() {
