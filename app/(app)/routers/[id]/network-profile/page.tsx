@@ -13,6 +13,7 @@ const textFields = [
   ["router_identity", "Router identity"],
   ["api_username", "API username"],
   ["api_password", "API password"],
+  ["hotspot_portal_name", "Captive portal name"],
   ["hotspot_dns_name", "HotSpot DNS name"],
   ["hotspot_bridge", "HotSpot bridge"],
   ["staff_bridge", "Staff bridge"],
