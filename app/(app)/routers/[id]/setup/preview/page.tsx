@@ -22,27 +22,20 @@ export default function PreviewPage({ params }: { params: Promise<{ id: string }
   const [success, setSuccess] = useState("");
   const [deploying, setDeploying] = useState(false);
   const [installCommand, setInstallCommand] = useState("");
-  const [configInstallCommand, setConfigInstallCommand] = useState("");
 
   useEffect(() => {
     setError("");
     setPreview(null);
     setInstallCommand("");
-    setConfigInstallCommand("");
 
     apiGet<ConfigPreview>(`/api/v1/routers/${id}/config-preview`)
       .then(async (previewData) => {
         setPreview(previewData);
-        const [hotspotCommandData, configCommandData] = await Promise.all([
-          apiGet<{ script: string }>(`/api/v1/routers/${id}/hotspot-install-command`),
-          apiGet<{ script: string }>(`/api/v1/routers/${id}/config-install-command`)
-        ]);
+        const hotspotCommandData = await apiGet<{ script: string }>(`/api/v1/routers/${id}/hotspot-install-command`);
         setInstallCommand(hotspotCommandData.script);
-        setConfigInstallCommand(configCommandData.script);
       })
       .catch((err) => {
         setInstallCommand("");
-        setConfigInstallCommand("");
         setError(err instanceof Error ? err.message : "Could not load preview.");
       });
   }, [id]);
@@ -53,7 +46,7 @@ export default function PreviewPage({ params }: { params: Promise<{ id: string }
     setSuccess("");
     try {
       const response = await apiPost<{ message: string; status: string }>(`/api/v1/routers/${id}/deploy`);
-      setSuccess(`${response.message}. Run the complete HotSpot install command below on the MikroTik to install discovery, RADIUS, NAT, bridges, DHCP, and HotSpot.`);
+      setSuccess(`${response.message}. Run the complete MikroTik install command below to install discovery, WireGuard when prepared, RADIUS, NAT, bridges, DHCP, and HotSpot.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not queue deployment.");
     } finally {
@@ -75,17 +68,12 @@ export default function PreviewPage({ params }: { params: Promise<{ id: string }
           ))}
         </div>
         <section>
-          <h2 className="mb-3 text-lg font-semibold text-ink">Generated RouterOS Script</h2>
-          <p className="mb-3 rounded-md border border-line bg-white/5 p-3 text-sm text-muted">Run this command in the MikroTik terminal to discover the router, fetch the generated service config, import it automatically, and report the install status. The imported script configures RADIUS, NAT, bridges, DHCP, HotSpot, the captive portal login file, and walled garden entries.</p>
+          <h2 className="mb-3 text-lg font-semibold text-ink">Complete MikroTik Install Command</h2>
+          <p className="mb-3 rounded-md border border-line bg-white/5 p-3 text-sm text-muted">Run this command in the MikroTik terminal to fetch one combined install script. The script discovers the router, installs WireGuard when prepared, configures RADIUS, NAT, bridges, DHCP, HotSpot, the captive portal login file, walled garden entries, and reports install status.</p>
           <div className="mb-5">
             <CodeBlock code={installCommand || "Loading install command..."} />
           </div>
-          <details className="mb-5 panel p-4">
-            <summary className="cursor-pointer text-sm font-semibold text-ink">Config-only install command</summary>
-            <div className="mt-3">
-              <CodeBlock code={configInstallCommand || "Loading config-only command..."} />
-            </div>
-          </details>
+          <h2 className="mb-3 text-lg font-semibold text-ink">Generated RouterOS Configuration</h2>
           <CodeBlock code={preview?.script ?? "Loading..."} filename="noblifi-config.rsc" />
         </section>
         <div className="flex flex-wrap gap-3">

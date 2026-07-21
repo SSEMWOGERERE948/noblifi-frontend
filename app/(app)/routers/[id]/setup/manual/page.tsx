@@ -8,23 +8,17 @@ import { apiGet, ConfigPreview } from "@/lib/router-setup";
 
 export default function ManualPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const [bootstrap, setBootstrap] = useState("");
   const [installCommand, setInstallCommand] = useState("");
-  const [configInstallCommand, setConfigInstallCommand] = useState("");
   const [preview, setPreview] = useState<ConfigPreview | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
     Promise.all([
-      apiGet<{ script: string }>(`/api/v1/routers/${id}/bootstrap-script`),
       apiGet<{ script: string }>(`/api/v1/routers/${id}/hotspot-install-command`),
-      apiGet<{ script: string }>(`/api/v1/routers/${id}/config-install-command`),
       apiGet<ConfigPreview>(`/api/v1/routers/${id}/config-preview`)
     ])
-      .then(([bootstrapData, hotspotInstallData, configInstallData, previewData]) => {
-        setBootstrap(bootstrapData.script);
+      .then(([hotspotInstallData, previewData]) => {
         setInstallCommand(hotspotInstallData.script);
-        setConfigInstallCommand(configInstallData.script);
         setPreview(previewData);
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Could not load manual scripts."));
@@ -35,16 +29,8 @@ export default function ManualPage({ params }: { params: Promise<{ id: string }>
       <div className="space-y-6">
         {error ? <p className="rounded-md border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{error}</p> : null}
         <section>
-          <h2 className="mb-3 text-lg font-semibold text-ink">Complete HotSpot Install Command</h2>
+          <h2 className="mb-3 text-lg font-semibold text-ink">Complete MikroTik Install Command</h2>
           <CodeBlock code={installCommand || "Loading..."} />
-        </section>
-        <section>
-          <h2 className="mb-3 text-lg font-semibold text-ink">Bootstrap Script</h2>
-          <CodeBlock code={bootstrap || "Loading..."} />
-        </section>
-        <section>
-          <h2 className="mb-3 text-lg font-semibold text-ink">Config-Only Install Command</h2>
-          <CodeBlock code={configInstallCommand || "Loading..."} />
         </section>
         <section>
           <h2 className="mb-3 text-lg font-semibold text-ink">RouterOS Configuration Script</h2>
@@ -55,9 +41,8 @@ export default function ManualPage({ params }: { params: Promise<{ id: string }>
           <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-muted">
             <li>Open MikroTik Winbox or WebFig.</li>
             <li>Open Terminal.</li>
-            <li>Paste the complete HotSpot install command.</li>
-            <li>Review the generated configuration script.</li>
-            <li>Use the bootstrap or config-only commands only when rerunning a single setup phase.</li>
+            <li>Paste the complete MikroTik install command.</li>
+            <li>Review the generated configuration script when you need to audit the HotSpot settings.</li>
           </ol>
         </section>
         <div className="flex flex-wrap gap-3">
