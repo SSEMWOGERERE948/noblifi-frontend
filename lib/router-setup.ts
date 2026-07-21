@@ -18,6 +18,24 @@ export type ConfigPreview = {
   script: string;
 };
 
+export type WireGuardSetup = {
+  enabled: boolean;
+  ready: boolean;
+  issues: string[];
+  status: string;
+  interface_name: string;
+  endpoint: string;
+  endpoint_port: number;
+  router_address: string;
+  server_address: string;
+  router_public_key: string;
+  mikrotik_install_command: string;
+  mikrotik_script: string;
+  vps_peer_command: string;
+  vps_peer_config: string;
+  verification_commands: string;
+};
+
 export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method: "POST",

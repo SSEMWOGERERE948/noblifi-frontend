@@ -56,6 +56,5 @@ export function bootstrapScript(token: string, baseUrl?: string) {
   const fetchMode = fetchModeFor(provisioningUrl);
   const bootstrapUrl = `${provisioningUrl}/bootstrap/${token}`;
 
-  return `/tool fetch url="${bootstrapUrl}" mode=${fetchMode} dst-path=noblifi-bootstrap.rsc
-/import file-name=noblifi-bootstrap.rsc`;
+  return `/tool fetch url="${bootstrapUrl}" mode=${fetchMode} dst-path="noblifi-bootstrap.rsc"; :delay 2s; /import file-name="noblifi-bootstrap.rsc"; :delay 1s; /file remove "noblifi-bootstrap.rsc"`;
 }

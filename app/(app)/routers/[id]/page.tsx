@@ -13,7 +13,10 @@ type RouterDetail = {
   expected_model?: string;
   model?: string;
   serial_number?: string;
-  router_os_version?: string;
+  routeros_version?: string;
+  management_ip?: string;
+  wireguard_tunnel_ip?: string;
+  wireguard_status?: string;
   status: string;
   claim_token: string;
   config_status?: string;
@@ -26,7 +29,7 @@ export default async function RouterDetailPage({ params }: { params: Promise<{ i
   const { id } = await params;
   const router = await apiFetch<RouterDetail>(`/api/v1/routers/${id}`);
   const interfaces = router.interfaces ?? [];
-  const isLinked = Boolean(router.serial_number || router.model || router.router_os_version || interfaces.length || router.status === "online" || router.status === "linked" || router.status === "provisioned");
+  const isLinked = Boolean(router.serial_number || router.model || router.routeros_version || interfaces.length || router.status === "online" || router.status === "linked" || router.status === "provisioned");
 
   return (
     <>
@@ -59,7 +62,10 @@ export default async function RouterDetailPage({ params }: { params: Promise<{ i
               ["Expected Model", router.expected_model ?? "-"],
               ["Detected Model", router.model ?? "Not linked yet"],
               ["Serial Number", router.serial_number ?? "Not linked yet"],
-              ["RouterOS", router.router_os_version ?? "Not linked yet"],
+              ["RouterOS", router.routeros_version ?? "Not linked yet"],
+              ["Management IP", router.management_ip ?? "Not connected"],
+              ["WireGuard IP", router.wireguard_tunnel_ip ?? "Not prepared"],
+              ["WireGuard", (router.wireguard_status ?? "disabled").replaceAll("_", " ")],
               ["Status", router.status],
               ["Claim Token", router.claim_token],
               ["Setup Step", router.setup_session?.current_step ?? "Not started"],
