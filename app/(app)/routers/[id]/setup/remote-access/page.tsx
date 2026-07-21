@@ -88,8 +88,8 @@ export default function RemoteAccessPage({ params }: { params: Promise<{ id: str
             onSelect={() => setMethod("wireguard")}
           />
           <SelectableCard
-            title="Bootstrap Only"
-            description="Register the router and discover its real model, RouterOS version, and ports without creating a VPN tunnel."
+            title="Bootstrap + HotSpot"
+            description="Run one script that discovers the router, installs WireGuard when configured, then installs RADIUS, DHCP, NAT, and HotSpot."
             selected={method === "bootstrap"}
             onSelect={() => setMethod("bootstrap")}
           />
@@ -125,9 +125,9 @@ export default function RemoteAccessPage({ params }: { params: Promise<{ id: str
         {method === "bootstrap" ? (
           <section className="space-y-3">
             <div>
-              <h2 className="text-lg font-semibold text-ink">MikroTik Registration Script</h2>
+              <h2 className="text-lg font-semibold text-ink">Complete MikroTik Bootstrap Script</h2>
               <p className="mt-1 text-sm text-muted">
-                Run this first to report the real RouterOS model, version, serial number, and interfaces. It does not change bridge or WAN configuration.
+                Run this once to discover the router, install WireGuard when the VPS environment is configured, then install RADIUS, DHCP, NAT, HotSpot, and the captive portal files.
               </p>
             </div>
             <CodeBlock code={bootstrapScript || "Loading bootstrap script..."} />
@@ -142,6 +142,19 @@ export default function RemoteAccessPage({ params }: { params: Promise<{ id: str
                 <ul className="mt-2 space-y-1">
                   {wireGuard.issues.map((issue) => <li key={issue}>{issue}</li>)}
                 </ul>
+                <div className="mt-4 space-y-3">
+                  <p className="font-semibold">Set these on the backend after preparing the VPS:</p>
+                  <CodeBlock
+                    code={`NOBLIFI_WIREGUARD_ENABLED=true
+NOBLIFI_WIREGUARD_ENDPOINT=<your-vps-public-ip-or-dns>
+NOBLIFI_WIREGUARD_PORT=51820
+NOBLIFI_WIREGUARD_PUBLIC_KEY=<public-key-printed-by-setup-wireguard-vps.sh>
+NOBLIFI_WIREGUARD_INTERFACE=wg0
+NOBLIFI_WIREGUARD_SERVER_IP=10.77.0.1
+NOBLIFI_WIREGUARD_SUBNET=10.77.0.0/24
+NOBLIFI_RADIUS_SERVER=10.77.0.1`}
+                  />
+                </div>
               </div>
             ) : null}
 
