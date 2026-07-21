@@ -21,6 +21,7 @@ function isAssignableInterface(iface: InterfaceInfo) {
   const name = iface.name.toLowerCase();
   if (type.includes("bridge") || name.includes("bridge") || name.startsWith("br-")) return false;
   if (type.includes("loopback") || type.includes("tunnel")) return false;
+  if (type.includes("wireguard") || type === "wg" || name.includes("wireguard") || name.startsWith("wg") || name.includes("-wg")) return false;
   return true;
 }
 

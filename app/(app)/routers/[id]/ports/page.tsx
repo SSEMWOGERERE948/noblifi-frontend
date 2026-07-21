@@ -5,6 +5,15 @@ import { apiGet, apiPut, InterfaceInfo } from "@/lib/router-setup";
 
 const roles = ["WAN", "HOTSPOT_LAN", "STAFF_LAN", "POS_LAN", "CCTV_LAN", "DISABLED"];
 
+function isAssignableInterface(iface: InterfaceInfo) {
+  const type = (iface.type ?? "").toLowerCase();
+  const name = iface.name.toLowerCase();
+  if (type.includes("bridge") || name.includes("bridge") || name.startsWith("br-")) return false;
+  if (type.includes("loopback") || type.includes("tunnel")) return false;
+  if (type.includes("wireguard") || type === "wg" || name.includes("wireguard") || name.startsWith("wg") || name.includes("-wg")) return false;
+  return true;
+}
+
 export default function RouterPortsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const [interfaces, setInterfaces] = useState<InterfaceInfo[]>([]);
@@ -15,10 +24,11 @@ export default function RouterPortsPage({ params }: { params: Promise<{ id: stri
   useEffect(() => {
     apiGet<{ interfaces: InterfaceInfo[] }>(`/api/v1/routers/${id}/interfaces`)
       .then((data) => {
-        setInterfaces(data.interfaces);
+        const nextInterfaces = data.interfaces.filter(isAssignableInterface);
+        setInterfaces(nextInterfaces);
         setAssignments((current) => {
           const next = { ...current };
-          data.interfaces.forEach((iface, index) => {
+          nextInterfaces.forEach((iface, index) => {
             if (!next[iface.name]) next[iface.name] = index === 0 ? "WAN" : index < 3 ? "HOTSPOT_LAN" : "DISABLED";
           });
           return next;

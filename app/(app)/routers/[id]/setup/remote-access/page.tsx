@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { CodeBlock } from "@/components/router-setup/CodeBlock";
 import { SelectableCard } from "@/components/router-setup/SelectableCard";
 import { SetupShell } from "@/components/router-setup/SetupShell";
-import { apiGet, apiPost, WireGuardSetup } from "@/lib/router-setup";
+import { ApiError, apiGet, apiPost, WireGuardSetup } from "@/lib/router-setup";
 
 type RemoteAccessMethod = "wireguard" | "bootstrap" | "direct_api";
 
@@ -24,17 +24,31 @@ export default function RemoteAccessPage({ params }: { params: Promise<{ id: str
 
   useEffect(() => {
     let active = true;
+    let stopPolling = false;
 
     apiGet<{ script: string }>(`/api/v1/routers/${id}/bootstrap-script`)
       .then((data) => active && setBootstrapScript(data.script))
-      .catch(() => active && setBootstrapScript(""));
+      .catch((err) => {
+        if (!active) return;
+        setBootstrapScript("");
+        if (err instanceof ApiError && err.status === 404) {
+          stopPolling = true;
+          setError("Router not found. Return to Routers and open an existing router.");
+        }
+      });
 
     async function refreshWireGuard() {
+      if (stopPolling) return;
       try {
         const setup = await apiGet<WireGuardSetup>(`/api/v1/routers/${id}/wireguard`);
         if (active) setWireGuard(setup);
-      } catch {
-        if (active) setWireGuard(null);
+      } catch (err) {
+        if (!active) return;
+        setWireGuard(null);
+        if (err instanceof ApiError && err.status === 404) {
+          stopPolling = true;
+          setError("Router not found. Return to Routers and open an existing router.");
+        }
       }
     }
 
@@ -88,8 +102,8 @@ export default function RemoteAccessPage({ params }: { params: Promise<{ id: str
             onSelect={() => setMethod("wireguard")}
           />
           <SelectableCard
-            title="Bootstrap + HotSpot"
-            description="Run one script that discovers the router, installs WireGuard when configured, then installs RADIUS, DHCP, NAT, and HotSpot."
+            title="Bootstrap Only"
+            description="Register the router and discover its real model, RouterOS version, and physical ports before service setup."
             selected={method === "bootstrap"}
             onSelect={() => setMethod("bootstrap")}
           />
@@ -125,9 +139,9 @@ export default function RemoteAccessPage({ params }: { params: Promise<{ id: str
         {method === "bootstrap" ? (
           <section className="space-y-3">
             <div>
-              <h2 className="text-lg font-semibold text-ink">Complete MikroTik Bootstrap Script</h2>
+              <h2 className="text-lg font-semibold text-ink">MikroTik Registration Script</h2>
               <p className="mt-1 text-sm text-muted">
-                Run this once to discover the router, install WireGuard when the VPS environment is configured, then install RADIUS, DHCP, NAT, HotSpot, and the captive portal files.
+                Run this first to report the real RouterOS model, version, serial number, and interfaces. It does not change bridge, WAN, DHCP, or HotSpot configuration.
               </p>
             </div>
             <CodeBlock code={bootstrapScript || "Loading bootstrap script..."} />

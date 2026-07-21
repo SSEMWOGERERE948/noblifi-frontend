@@ -1,5 +1,15 @@
 import { API_BASE_URL } from "@/lib/api";
 
+export class ApiError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
 export type InterfaceInfo = {
   name: string;
   type?: string;
@@ -62,7 +72,7 @@ export async function apiGet<T>(path: string): Promise<T> {
 async function parseResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(text || `Request failed with ${response.status}`);
+    throw new ApiError(response.status, text || `Request failed with ${response.status}`);
   }
   return (await response.json()) as T;
 }
