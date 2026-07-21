@@ -46,7 +46,7 @@ export default function PreviewPage({ params }: { params: Promise<{ id: string }
     setSuccess("");
     try {
       const response = await apiPost<{ message: string; status: string }>(`/api/v1/routers/${id}/deploy`);
-      setSuccess(`${response.message}. Run the complete MikroTik install command below to install discovery, WireGuard when prepared, RADIUS, NAT, bridges, DHCP, and HotSpot.`);
+      setSuccess(`${response.message}. Run the second-stage MikroTik install command below to repair/install RADIUS, NAT, bridges, DHCP, HotSpot, and captive portal files.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not queue deployment.");
     } finally {
@@ -68,8 +68,8 @@ export default function PreviewPage({ params }: { params: Promise<{ id: string }
           ))}
         </div>
         <section>
-          <h2 className="mb-3 text-lg font-semibold text-ink">Complete MikroTik Install Command</h2>
-          <p className="mb-3 rounded-md border border-line bg-white/5 p-3 text-sm text-muted">Run this command in the MikroTik terminal to fetch one combined install script. The script discovers the router, installs WireGuard when prepared, configures RADIUS, NAT, bridges, DHCP, HotSpot, the captive portal login file, walled garden entries, and reports install status.</p>
+          <h2 className="mb-3 text-lg font-semibold text-ink">Second-Stage MikroTik Install Command</h2>
+          <p className="mb-3 rounded-md border border-line bg-white/5 p-3 text-sm text-muted">Run this after topology is saved. It fetches one install script that repairs or installs the HotSpot bridge, DHCP, DNS, RADIUS, NAT, HotSpot profile/server, captive portal files, walled garden entries, and install status reporting.</p>
           <div className="mb-5">
             <CodeBlock code={installCommand || "Loading install command..."} />
           </div>
