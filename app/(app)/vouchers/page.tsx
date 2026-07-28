@@ -11,6 +11,8 @@ export default function VouchersPage() {
   const [vouchers, setVouchers] = useState<Voucher[]>([]);
   const [planId, setPlanId] = useState("");
   const [quantity, setQuantity] = useState("10");
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const planById = new Map(plans.map((plan) => [plan.id, plan]));
 
   useEffect(() => {
@@ -18,31 +20,75 @@ export default function VouchersPage() {
       .then((response) => (response.ok ? response.json() : []))
       .then((data: Plan[]) => {
         setPlans(data);
-        setPlanId(data[0]?.id ?? "");
+        setPlanId((current) => current || data[0]?.id || "");
       })
       .catch(() => setPlans([]));
-    fetch(`${API_BASE_URL}/api/v1/vouchers`)
-      .then((response) => (response.ok ? response.json() : []))
-      .then(setVouchers)
-      .catch(() => setVouchers([]));
+
+    const loadVouchers = () => {
+      fetch(`${API_BASE_URL}/api/v1/vouchers`)
+        .then((response) => (response.ok ? response.json() : []))
+        .then((data: Voucher[]) => setVouchers(data))
+        .catch(() => setVouchers([]));
+    };
+
+    loadVouchers();
+    const interval = window.setInterval(loadVouchers, 10000);
+    return () => window.clearInterval(interval);
   }, []);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const response = await fetch(`${API_BASE_URL}/api/v1/vouchers/generate`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ plan_id: planId, quantity: Number(quantity) })
-    });
-    if (response.ok) {
-      const generated = (await response.json()) as Voucher[];
-      setVouchers((current) => [...generated, ...current]);
+    setError(null);
+    setSubmitting(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/v1/vouchers/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan_id: planId, quantity: Number(quantity) })
+      });
+
+      const body = await response.json().catch(() => null);
+
+      if (response.ok) {
+        // Success: body is a plain Voucher[]
+        const generated = (body ?? []) as Voucher[];
+        setVouchers((current) => [...generated, ...current]);
+        return;
+      }
+
+      if (response.status === 207 && body?.vouchers) {
+        // Partial failure: backend still created the vouchers, but one or
+        // more failed to sync to RADIUS. Show them AND surface the error,
+        // since a voucher that exists here but isn't in RADIUS will fail
+        // authentication at the router with no obvious cause otherwise.
+        const generated = (body.vouchers ?? []) as Voucher[];
+        setVouchers((current) => [...generated, ...current]);
+        setError(
+          body.error ??
+            "Some vouchers were created but failed to sync to RADIUS. They will not work until re-synced."
+        );
+        return;
+      }
+
+      setError(body?.error ?? body?.message ?? "Failed to generate vouchers. Please try again.");
+    } catch {
+      setError("Could not reach the server. Please check your connection and try again.");
+    } finally {
+      setSubmitting(false);
     }
   }
 
   return (
     <div>
       <h1 className="text-2xl font-semibold text-ink">Vouchers</h1>
+
+      {error && (
+        <div className="panel mt-4 border border-red-400/40 bg-red-500/10 p-4 text-sm text-red-300">
+          {error}
+        </div>
+      )}
+
       <form onSubmit={submit} className="panel mt-6 flex flex-col gap-4 p-5 md:flex-row md:items-end">
         <label className="flex-1 text-sm font-medium text-ink">
           Package
@@ -58,10 +104,11 @@ export default function VouchersPage() {
           Quantity
           <input className="field mt-2" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
         </label>
-        <button className="btn" type="submit" disabled={!planId}>
-          Generate
+        <button className="btn" type="submit" disabled={!planId || submitting}>
+          {submitting ? "Generating..." : "Generate"}
         </button>
       </form>
+
       <div className="panel mt-6 divide-y divide-line">
         {vouchers.map((voucher) => (
           <div key={voucher.id} className="grid gap-3 p-4 text-sm md:grid-cols-4">
@@ -72,7 +119,9 @@ export default function VouchersPage() {
                 ? `${planById.get(voucher.plan_id)?.duration_minutes} min - ${planById.get(voucher.plan_id)?.download_speed} down`
                 : "Package details unavailable"}
             </span>
-            <span className="text-muted">{voucher.status}</span>
+            <span className={`text-sm font-medium ${voucher.status === "used" ? "text-emerald-400" : "text-muted"}`}>
+              {voucher.status === "used" ? "Used" : voucher.status}
+            </span>
           </div>
         ))}
         {vouchers.length === 0 && <div className="p-4 text-sm text-muted">No vouchers generated yet.</div>}
@@ -80,4 +129,3 @@ export default function VouchersPage() {
     </div>
   );
 }
-
