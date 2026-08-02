@@ -3,7 +3,13 @@
 import { FormEvent, useEffect, useState } from "react";
 import { API_BASE_URL } from "@/lib/api";
 
-type Voucher = { id: string; code: string; status: string; plan_id: string };
+type Voucher = {
+  id: string;
+  code: string;
+  status: string;
+  plan_id: string;
+  used_at?: string | null;
+};
 type Plan = { id: string; name: string; price: number; duration_minutes: number; download_speed: string; upload_speed: string };
 
 export default function VouchersPage() {
@@ -110,22 +116,72 @@ export default function VouchersPage() {
       </form>
 
       <div className="panel mt-6 divide-y divide-line">
-        {vouchers.map((voucher) => (
-          <div key={voucher.id} className="grid gap-3 p-4 text-sm md:grid-cols-4">
-            <span className="font-mono font-semibold text-ink">{voucher.code}</span>
-            <span className="text-muted">{planById.get(voucher.plan_id)?.name ?? voucher.plan_id}</span>
-            <span className="text-muted">
-              {planById.get(voucher.plan_id)
-                ? `${planById.get(voucher.plan_id)?.duration_minutes} min - ${planById.get(voucher.plan_id)?.download_speed} down`
-                : "Package details unavailable"}
-            </span>
-            <span className={`text-sm font-medium ${voucher.status === "used" ? "text-emerald-400" : "text-muted"}`}>
-              {voucher.status === "used" ? "Used" : voucher.status}
-            </span>
-          </div>
-        ))}
+        {vouchers.map((voucher) => {
+          const status = voucherStatus(voucher);
+
+          return (
+            <div key={voucher.id} className="grid gap-3 p-4 text-sm md:grid-cols-4">
+              <span className="font-mono font-semibold text-ink">{voucher.code}</span>
+              <span className="text-muted">{planById.get(voucher.plan_id)?.name ?? voucher.plan_id}</span>
+              <span className="text-muted">
+                {planById.get(voucher.plan_id)
+                  ? `${planById.get(voucher.plan_id)?.duration_minutes} min - ${planById.get(voucher.plan_id)?.download_speed} down`
+                  : "Package details unavailable"}
+              </span>
+              <span className="flex flex-col items-start gap-1">
+                <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${status.className}`}>
+                  {status.label}
+                </span>
+                {status.detail ? <span className="text-xs text-muted">{status.detail}</span> : null}
+              </span>
+            </div>
+          );
+        })}
         {vouchers.length === 0 && <div className="p-4 text-sm text-muted">No vouchers generated yet.</div>}
       </div>
     </div>
   );
+}
+
+function voucherStatus(voucher: Voucher) {
+  const normalizedStatus = voucher.status.trim().toLowerCase();
+
+  if (normalizedStatus === "used" || voucher.used_at) {
+    return {
+      label: "Used",
+      detail: voucher.used_at ? `Consumed ${formatDateTime(voucher.used_at)}` : null,
+      className: "border-red-400/40 bg-red-500/10 text-red-300"
+    };
+  }
+
+  if (normalizedStatus === "unused") {
+    return {
+      label: "Unused",
+      detail: null,
+      className: "border-emerald-400/40 bg-emerald-500/10 text-emerald-300"
+    };
+  }
+
+  return {
+    label: titleCase(voucher.status || "unknown"),
+    detail: null,
+    className: "border-line bg-white/5 text-muted"
+  };
+}
+
+function formatDateTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short"
+  }).format(date);
+}
+
+function titleCase(value: string) {
+  return value
+    .trim()
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }

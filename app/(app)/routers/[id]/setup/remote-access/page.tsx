@@ -207,14 +207,14 @@ NOBLIFI_RADIUS_SERVER=10.77.0.1`}
                 {wireGuard.router_public_key ? (
                   <div className="space-y-3">
                     <div>
-                      <h2 className="text-lg font-semibold text-ink">2. Add this router peer on the VPS</h2>
+                      <h2 className="text-lg font-semibold text-ink">2. Emergency manual recovery only</h2>
                       <p className="mt-1 text-sm text-muted">
-                        The MikroTik reported its public key. Run this on the VPS to activate the peer and persist it.
+                        The xneelo agent normally installs this peer automatically. Use this command only to recover a failed agent path.
                       </p>
                     </div>
                     <CodeBlock code={wireGuard.vps_peer_command} />
                     <details className="panel p-4">
-                      <summary className="cursor-pointer text-sm font-semibold text-ink">Manual wg0 peer block</summary>
+                      <summary className="cursor-pointer text-sm font-semibold text-ink">Emergency manual wg0 peer block</summary>
                       <div className="mt-3"><CodeBlock code={wireGuard.vps_peer_config} /></div>
                     </details>
                     <div>
@@ -224,7 +224,7 @@ NOBLIFI_RADIUS_SERVER=10.77.0.1`}
                     <p className={`rounded-md border p-4 text-sm ${wireGuard.status === "connected" ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-200" : "border-cyan-300/30 bg-cyan-300/10 text-cyan-100"}`}>
                       {wireGuard.status === "connected"
                         ? "WireGuard handshake verified. The VPS can reach this MikroTik over its private tunnel address."
-                        : "Run the VPS peer command above. It pings the router and marks this tunnel connected only after the ping succeeds."}
+                        : "Waiting for the xneelo agent to install the peer and for the MikroTik to report a current handshake."}
                     </p>
                     <button
                       type="button"
