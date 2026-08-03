@@ -34,7 +34,7 @@ type PaymentStatus = {
   voucher?: string;
 };
 
-const trackingKey = "noblifi_pesapal_tracking";
+const trackingKey = "noblifi_iotec_tracking";
 
 export default function BuyVoucherPage() {
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -120,22 +120,30 @@ export default function BuyVoucherPage() {
       });
       const body = await response.json().catch(() => null);
       if (!response.ok) {
-        throw new Error(body?.message || body?.error || "Could not start Pesapal checkout.");
+        throw new Error(body?.message || body?.error || "Could not start ioTec collection.");
       }
 
       const order = body as StartOrderResponse;
       window.sessionStorage.setItem(trackingKey, order.order_tracking_id);
-      window.location.href = order.redirect_url;
+      setStatus({
+        success: false,
+        status: "pending",
+        raw_status: "Approve the mobile money prompt on your phone.",
+        merchant_reference: order.merchant_reference,
+        order_tracking_id: order.order_tracking_id
+      });
+      setSubmitting(false);
+      checkPayment(order.order_tracking_id, 0);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not start Pesapal checkout.");
+      setError(err instanceof Error ? err.message : "Could not start ioTec collection.");
       setSubmitting(false);
     }
   }
 
-  async function checkPayment(trackingId?: string) {
+  async function checkPayment(trackingId?: string, tries = 20) {
     const id = trackingId || window.sessionStorage.getItem(trackingKey);
     if (!id) {
-      setError("No Pesapal tracking ID was found for this checkout.");
+      setError("No ioTec transaction ID was found for this checkout.");
       return;
     }
 
@@ -155,6 +163,8 @@ export default function BuyVoucherPage() {
       setStatus(result);
       if (result.voucher) {
         window.sessionStorage.removeItem(trackingKey);
+      } else if (result.status !== "failed" && tries > 0) {
+        window.setTimeout(() => checkPayment(id, tries - 1), 3000);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not verify payment.");
@@ -167,7 +177,7 @@ export default function BuyVoucherPage() {
     <main className="min-h-screen bg-app px-4 py-8 text-ink">
       <div className="mx-auto w-full max-w-2xl">
         <h1 className="text-2xl font-semibold">Buy WiFi Voucher</h1>
-        <p className="mt-2 text-sm text-muted">Choose a package and pay securely with Pesapal.</p>
+        <p className="mt-2 text-sm text-muted">Choose a package and pay securely with ioTec Pay.</p>
 
         {error ? (
           <div className="panel mt-5 border-red-400/40 bg-red-500/10 p-4 text-sm text-red-300">{error}</div>
@@ -195,7 +205,7 @@ export default function BuyVoucherPage() {
           {loading ? <p className="text-sm text-muted">Loading packages...</p> : null}
 
           {!loading && config && !config.configured ? (
-            <p className="text-sm text-red-300">Pesapal is not configured on the backend.</p>
+            <p className="text-sm text-red-300">ioTec Pay is not configured on the backend.</p>
           ) : null}
 
           {!loading && activePlans.length === 0 ? (
@@ -238,9 +248,10 @@ export default function BuyVoucherPage() {
               Phone
               <input
                 className="field mt-2"
+                required
                 value={phone}
                 onChange={(event) => setPhone(event.target.value)}
-                placeholder="2567XXXXXXXX"
+                placeholder="0111777777"
               />
             </label>
             <label className="text-sm font-medium">
@@ -260,7 +271,7 @@ export default function BuyVoucherPage() {
             type="submit"
             disabled={!config?.configured || !selectedPlan || submitting}
           >
-            {submitting ? "Opening Pesapal..." : "Pay with Pesapal"}
+            {submitting ? "Starting ioTec payment..." : "Pay with ioTec"}
           </button>
         </form>
       </div>
