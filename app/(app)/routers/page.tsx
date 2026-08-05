@@ -189,6 +189,7 @@ export default function RoutersPage() {
                       </button>
                       {menuRouterId === router.id ? (
                         <div className="absolute right-4 z-20 mt-2 w-64 overflow-hidden rounded-md border border-line bg-panel text-left shadow-xl">
+                          <Link href={`/routers/${router.id}`} className="block w-full px-4 py-3 text-left text-sm text-ink hover:bg-soft">Open router settings</Link>
                           <button className="block w-full px-4 py-3 text-left text-sm text-ink hover:bg-soft" type="button" onClick={() => rename(router)}>Rename</button>
                           <button className="block w-full px-4 py-3 text-left text-sm text-ink hover:bg-soft" type="button" onClick={() => collect(router)}>Collect router info</button>
                           <div className="border-t border-line px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted">Remote access</div>
