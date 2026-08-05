@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "@/lib/api";
+import { getToken } from "@/lib/auth";
 
 export class ApiError extends Error {
   status: number;
@@ -49,7 +50,7 @@ export type WireGuardSetup = {
 export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders(),
     body: body ? JSON.stringify(body) : undefined
   });
   return parseResponse<T>(response);
@@ -58,15 +59,22 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
 export async function apiPut<T>(path: string, body: unknown): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders(),
     body: JSON.stringify(body)
   });
   return parseResponse<T>(response);
 }
 
 export async function apiGet<T>(path: string): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, { cache: "no-store" });
+  const response = await fetch(`${API_BASE_URL}${path}`, { headers: authHeaders(), cache: "no-store" });
   return parseResponse<T>(response);
+}
+
+function authHeaders() {
+  return {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${getToken() || ""}`
+  };
 }
 
 async function parseResponse<T>(response: Response): Promise<T> {

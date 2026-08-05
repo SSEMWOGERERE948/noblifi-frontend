@@ -2,11 +2,12 @@
 
 import { FormEvent, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { login, saveSession } from "@/lib/auth";
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("admin@noblifi.local");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
@@ -20,7 +21,7 @@ export default function LoginPage() {
     try {
       const session = await login(email, password);
       saveSession(session);
-      router.push("/dashboard");
+      router.push(searchParams.get("next") || "/dashboard");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Login failed.");
     } finally {

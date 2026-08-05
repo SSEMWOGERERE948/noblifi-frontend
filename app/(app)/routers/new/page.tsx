@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { API_BASE_URL } from "@/lib/api";
+import { getToken } from "@/lib/auth";
 
 type CreatedRouter = {
   id: string;
@@ -24,12 +25,13 @@ export default function NewRouterPage() {
     setSubmitting(true);
     const response = await fetch(`${API_BASE_URL}/api/v1/routers`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken() || ""}` },
       body: JSON.stringify({ name, site_name: siteName, expected_model: model })
     });
 
     if (!response.ok) {
-      setError("Router could not be created.");
+      const text = await response.text();
+      setError(text || "Router could not be created.");
       setSubmitting(false);
       return;
     }

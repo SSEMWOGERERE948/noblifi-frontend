@@ -1,4 +1,5 @@
-export const API_BASE_URL = normalizeBaseUrl(process.env.NEXT_PUBLIC_API_BASE_URL ?? "https://noblifi.uc.r.appspot.com");
+// For local development, set NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8080.https://noblifi.uc.r.appspot.com
+export const API_BASE_URL = normalizeBaseUrl(process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8080");
 
 type FetchOptions = RequestInit & {
   fallback?: unknown;

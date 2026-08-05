@@ -5,6 +5,8 @@ export type AuthUser = {
   name: string;
   email: string;
   role: string;
+  account_status?: string;
+  portal_name?: string;
 };
 
 type AuthResponse = {
@@ -21,7 +23,19 @@ export function saveSession(session: AuthResponse) {
 }
 
 export function getToken() {
+  if (typeof window === "undefined") return null;
   return localStorage.getItem(tokenKey);
+}
+
+export function getSavedUser(): AuthUser | null {
+  if (typeof window === "undefined") return null;
+  const raw = localStorage.getItem(userKey);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as AuthUser;
+  } catch {
+    return null;
+  }
 }
 
 export function clearSession() {
@@ -33,8 +47,16 @@ export async function login(email: string, password: string) {
   return authRequest("/api/v1/auth/login", { email, password });
 }
 
-export async function signup(name: string, email: string, password: string) {
-  return authRequest("/api/v1/auth/signup", { name, email, password });
+export async function signup(name: string, email: string, password: string, portalName?: string) {
+  const response = await fetch(`${API_BASE_URL}/api/v1/auth/signup`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, email, password, portal_name: portalName || name })
+  });
+  if (!response.ok) {
+    throw new Error(await readError(response));
+  }
+  return response.json();
 }
 
 async function authRequest(path: string, body: unknown) {
@@ -45,10 +67,20 @@ async function authRequest(path: string, body: unknown) {
   });
 
   if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || "Authentication failed");
+    throw new Error(await readError(response));
   }
 
   return (await response.json()) as AuthResponse;
+}
+
+async function readError(response: Response) {
+  const text = await response.text();
+  if (!text) return "Authentication failed";
+  try {
+    const body = JSON.parse(text);
+    return body.message || body.error || text;
+  } catch {
+    return text;
+  }
 }
 

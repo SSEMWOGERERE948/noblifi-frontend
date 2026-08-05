@@ -1,10 +1,14 @@
+"use client";
+
 import Link from "next/link";
+import { useParams } from "next/navigation";
+import { useEffect, useState } from "react";
 
 import { BootstrapScript } from "@/components/BootstrapScript";
+import { DeleteRouterPanel } from "@/components/DeleteRouterPanel";
 import { PageHeader } from "@/components/PageHeader";
-import { apiFetch } from "@/lib/api";
-
-export const dynamic = "force-dynamic";
+import { API_BASE_URL } from "@/lib/api";
+import { getToken } from "@/lib/auth";
 
 type RouterDetail = {
   id: string;
@@ -25,9 +29,35 @@ type RouterDetail = {
   network_profile?: unknown;
 };
 
-export default async function RouterDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const router = await apiFetch<RouterDetail>(`/api/v1/routers/${id}`);
+export default function RouterDetailPage() {
+  const params = useParams<{ id: string }>();
+  const id = params.id;
+  const [router, setRouter] = useState<RouterDetail | null>(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    async function loadRouter() {
+      const response = await fetch(`${API_BASE_URL}/api/v1/routers/${id}`, {
+        headers: { Authorization: `Bearer ${getToken() || ""}` },
+        cache: "no-store"
+      }).catch(() => null);
+      if (!response?.ok) {
+        setError("Could not load this router for your account.");
+        return;
+      }
+      setRouter(await response.json());
+    }
+    loadRouter();
+  }, [id]);
+
+  if (error) {
+    return <div className="panel p-6 text-sm text-red-300">{error}</div>;
+  }
+
+  if (!router) {
+    return <div className="panel p-6 text-sm text-muted">Loading router...</div>;
+  }
+
   const interfaces = router.interfaces ?? [];
   const isLinked = Boolean(router.serial_number || router.model || router.routeros_version || interfaces.length || router.status === "online" || router.status === "linked" || router.status === "provisioned");
 
@@ -108,6 +138,7 @@ export default async function RouterDetailPage({ params }: { params: Promise<{ i
         <h2 className="mb-3 text-lg font-semibold text-ink">Registration Script</h2>
         <BootstrapScript token={router.claim_token} />
       </section>
+      <DeleteRouterPanel routerId={router.id} routerName={router.name} />
     </>
   );
 }

@@ -14,6 +14,7 @@ const textFields = [
   ["api_username", "API username"],
   ["api_password", "API password"],
   ["hotspot_portal_name", "Captive portal name"],
+  ["hotspot_template_key", "Captive portal template"],
   ["hotspot_dns_name", "HotSpot DNS name"],
   ["hotspot_bridge", "HotSpot bridge"],
   ["staff_bridge", "Staff bridge"],
@@ -32,6 +33,13 @@ const textFields = [
   ["cctv_gateway", "CCTV gateway"],
   ["cctv_pool", "CCTV pool"],
   ["wan_mode", "WAN mode"]
+];
+
+const portalTemplates = [
+  { key: "clean", name: "Clean Access", tone: "bg-sky-400", description: "Clear voucher login with cool blue accents." },
+  { key: "fresh", name: "Fresh Market", tone: "bg-emerald-300", description: "Green and aqua theme for cafes, salons, and public spaces." },
+  { key: "sunrise", name: "Sunrise Lounge", tone: "bg-amber-300", description: "Warm premium look for hotels, restaurants, and event venues." },
+  { key: "royal", name: "Royal Night", tone: "bg-violet-300", description: "Deep polished theme for bars, lounges, and late-night venues." }
 ];
 
 export default function NetworkProfilePage({ params }: { params: Promise<{ id: string }> }) {
@@ -86,6 +94,28 @@ export default function NetworkProfilePage({ params }: { params: Promise<{ id: s
 
       {profile ? (
         <div className="space-y-6">
+          <div className="panel p-5">
+            <h2 className="text-lg font-semibold text-ink">Portal templates</h2>
+            <p className="mt-1 text-sm text-muted">Choose a starting style for this router's captive portal. The portal name above stays client-controlled.</p>
+            <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              {portalTemplates.map((template) => {
+                const active = profile.hotspot_template_key === template.key || (!profile.hotspot_template_key && template.key === "clean");
+                return (
+                  <button
+                    key={template.key}
+                    className={`rounded-md border p-4 text-left transition ${active ? "border-brand bg-soft" : "border-line hover:bg-soft"}`}
+                    type="button"
+                    onClick={() => setValue("hotspot_template_key", template.key)}
+                  >
+                    <span className={`mb-4 block h-16 rounded-md ${template.tone}`} />
+                    <span className="block font-semibold text-ink">{template.name}</span>
+                    <span className="mt-2 block text-xs leading-5 text-muted">{template.description}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           <div className="panel grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-3">
             {textFields.map(([key, label]) => (
               <label key={key} className="text-sm font-medium text-ink">

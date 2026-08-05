@@ -11,11 +11,12 @@ type Plan = {
   upload_speed: string;
   download_speed: string;
   max_devices: number;
+  data_limit_mb?: number | null;
 };
 
 export default function PlansPage() {
   const [plans, setPlans] = useState<Plan[]>([]);
-  const [form, setForm] = useState({ name: "", price: "100", duration_minutes: "60", upload_speed: "5M", download_speed: "10M", max_devices: "1" });
+  const [form, setForm] = useState({ name: "", price: "100", duration_minutes: "60", upload_speed: "5M", download_speed: "10M", max_devices: "1", data_limit_mb: "" });
 
   useEffect(() => {
     fetch(`${API_BASE_URL}/api/v1/plans`)
@@ -33,13 +34,14 @@ export default function PlansPage() {
         ...form,
         price: Number(form.price),
         duration_minutes: Number(form.duration_minutes),
-        max_devices: Number(form.max_devices)
+        max_devices: Number(form.max_devices),
+        data_limit_mb: form.data_limit_mb ? Number(form.data_limit_mb) : null
       })
     });
     if (response.ok) {
       const created = (await response.json()) as Plan;
       setPlans((current) => [...current, created]);
-      setForm({ ...form, name: "" });
+      setForm({ ...form, name: "", data_limit_mb: "" });
     }
   }
 
@@ -53,11 +55,12 @@ export default function PlansPage() {
           ["duration_minutes", "Duration minutes"],
           ["upload_speed", "Upload speed"],
           ["download_speed", "Download speed"],
-          ["max_devices", "Max devices"]
+          ["max_devices", "Max devices"],
+          ["data_limit_mb", "Data cap MB optional"]
         ].map(([key, label]) => (
           <label key={key} className="text-sm font-medium text-ink">
             {label}
-            <input className="field mt-2" value={form[key as keyof typeof form]} onChange={(e) => setForm({ ...form, [key]: e.target.value })} required />
+            <input className="field mt-2" value={form[key as keyof typeof form]} onChange={(e) => setForm({ ...form, [key]: e.target.value })} required={key !== "data_limit_mb"} />
           </label>
         ))}
         <div className="md:col-span-3">
@@ -68,13 +71,14 @@ export default function PlansPage() {
       </form>
       <div className="panel mt-6 divide-y divide-line">
         {plans.map((plan) => (
-          <div key={plan.id} className="grid gap-3 p-4 text-sm md:grid-cols-6">
+          <div key={plan.id} className="grid gap-3 p-4 text-sm md:grid-cols-7">
             <span className="font-medium text-ink">{plan.name}</span>
             <span className="text-muted">{plan.price}</span>
             <span className="text-muted">{plan.duration_minutes} min</span>
             <span className="text-muted">Up {plan.upload_speed}</span>
             <span className="text-muted">Down {plan.download_speed}</span>
             <span className="text-muted">{plan.max_devices} devices</span>
+            <span className="text-muted">{plan.data_limit_mb ? `${plan.data_limit_mb} MB` : "No data cap"}</span>
           </div>
         ))}
       </div>

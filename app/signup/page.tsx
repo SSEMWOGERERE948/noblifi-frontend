@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
-import { saveSession, signup } from "@/lib/auth";
+import { signup } from "@/lib/auth";
 
 export default function SignupPage() {
   const router = useRouter();
   const [name, setName] = useState("");
+  const [portalName, setPortalName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
@@ -19,9 +20,9 @@ export default function SignupPage() {
     setMessage("");
 
     try {
-      const session = await signup(name, email, password);
-      saveSession(session);
-      router.push("/dashboard");
+      await signup(name, email, password, portalName || name);
+      setMessage("Account created. A superadmin must approve it before you can sign in.");
+      window.setTimeout(() => router.push("/login"), 1800);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Signup failed.");
     } finally {
@@ -37,6 +38,11 @@ export default function SignupPage() {
         <label className="mt-6 block text-sm font-medium text-ink">
           Name
           <input className="field mt-2" value={name} onChange={(e) => setName(e.target.value)} required />
+        </label>
+        <label className="mt-4 block text-sm font-medium text-ink">
+          Captive portal name
+          <input className="field mt-2" value={portalName} onChange={(e) => setPortalName(e.target.value)} placeholder={name || "Your WiFi brand"} />
+          <span className="mt-1 block text-xs text-muted">This appears as the main name on your customer WiFi login page.</span>
         </label>
         <label className="mt-4 block text-sm font-medium text-ink">
           Email
