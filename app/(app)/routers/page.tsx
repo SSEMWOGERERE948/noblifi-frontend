@@ -19,14 +19,13 @@ type RouterRow = {
   wireguard_status?: string;
   status: string;
   last_seen_at?: string | null;
-};
-
-type Telemetry = {
-  model: string;
-  routeros_version: string;
-  uptime: string;
-  cpu_load: string;
-  active_hotspot_users: number;
+  uptime?: string | null;
+  cpu_load?: string | null;
+  free_memory?: string | null;
+  total_memory?: string | null;
+  active_hotspot_users?: number | null;
+  telemetry_updated_at?: string | null;
+  telemetry_last_error?: string | null;
 };
 
 type RemoteAccess = {
@@ -41,7 +40,6 @@ type RemoteAccess = {
 
 export default function RoutersPage() {
   const [routers, setRouters] = useState<RouterRow[]>([]);
-  const [telemetry, setTelemetry] = useState<Record<string, Telemetry>>({});
   const [menuRouterId, setMenuRouterId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
@@ -60,19 +58,6 @@ export default function RoutersPage() {
     }
     setRouters(await response.json());
     setLoading(false);
-  }
-
-  async function collect(router: RouterRow) {
-    setMessage(`Collecting information from ${router.name}...`);
-    const response = await authedFetch(`/api/v1/routers/${router.id}/collect-telemetry`, { method: "POST" });
-    if (!response.ok) {
-      setMessage(await readError(response, "Could not collect router information."));
-      return;
-    }
-    const data = (await response.json()) as Telemetry;
-    setTelemetry((current) => ({ ...current, [router.id]: data }));
-    setMessage(`Updated information for ${router.name}.`);
-    loadRouters();
   }
 
   async function remote(router: RouterRow, action: "copy" | "web") {
@@ -139,7 +124,7 @@ export default function RoutersPage() {
     <div className="space-y-6">
       <PageHeader
         title="Routers"
-        description="Manage your network infrastructure, collect live router information, and open remote access."
+        description="Manage your network infrastructure, review scheduled router telemetry, and open remote access."
         action={<Link href="/routers/new" className="btn">Add Router</Link>}
       />
       {message ? <div className="panel p-4 text-sm text-muted">{message}</div> : null}
@@ -162,8 +147,8 @@ export default function RoutersPage() {
             </thead>
             <tbody className="divide-y divide-line">
               {routers.map((router) => {
-                const live = telemetry[router.id];
                 const address = router.wireguard_tunnel_ip || router.management_ip || "No remote address";
+                const updated = telemetryFreshness(router);
                 return (
                   <tr key={router.id}>
                     <td className="px-4 py-4">
@@ -171,18 +156,27 @@ export default function RoutersPage() {
                       <p className="text-xs text-muted">{address}</p>
                     </td>
                     <td className="px-4 py-4 text-muted">
-                      {live?.model || router.model || router.expected_model || "Not collected"}
+                      {router.model || router.expected_model || "Pending"}
                       <br />
-                      {live?.routeros_version || router.routeros_version || "Version pending"}
+                      {router.routeros_version || "Version pending"}
                     </td>
                     <td className="px-4 py-4">
                       <span className="rounded-full border border-emerald-400/40 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-300">
                         {router.status || "pending"}
                       </span>
                     </td>
-                    <td className="px-4 py-4 text-muted">{live?.cpu_load ? `${live.cpu_load}%` : "Collect"}</td>
-                    <td className="px-4 py-4 text-muted">{live?.uptime || "Collect"}</td>
-                    <td className="px-4 py-4 text-muted">{live?.active_hotspot_users ?? "Collect"}</td>
+                    <td className="px-4 py-4 text-muted">
+                      {router.cpu_load ? `${router.cpu_load}%` : "Pending"}
+                      <TelemetryHint router={router} updated={updated} />
+                    </td>
+                    <td className="px-4 py-4 text-muted">
+                      {router.uptime || "Pending"}
+                      <TelemetryHint router={router} updated={updated} />
+                    </td>
+                    <td className="px-4 py-4 text-muted">
+                      {typeof router.active_hotspot_users === "number" ? router.active_hotspot_users : "Pending"}
+                      <TelemetryHint router={router} updated={updated} />
+                    </td>
                     <td className="relative px-4 py-4 text-right">
                       <button className="btn-secondary px-3" type="button" onClick={() => setMenuRouterId(menuRouterId === router.id ? null : router.id)}>
                         More
@@ -191,7 +185,6 @@ export default function RoutersPage() {
                         <div className="absolute right-4 z-20 mt-2 w-64 overflow-hidden rounded-md border border-line bg-panel text-left shadow-xl">
                           <Link href={`/routers/${router.id}`} className="block w-full px-4 py-3 text-left text-sm text-ink hover:bg-soft">Open router settings</Link>
                           <button className="block w-full px-4 py-3 text-left text-sm text-ink hover:bg-soft" type="button" onClick={() => rename(router)}>Rename</button>
-                          <button className="block w-full px-4 py-3 text-left text-sm text-ink hover:bg-soft" type="button" onClick={() => collect(router)}>Collect router info</button>
                           <div className="border-t border-line px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted">Remote access</div>
                           <button className="block w-full px-4 py-3 text-left text-sm text-ink hover:bg-soft" type="button" onClick={() => remote(router, "copy")}>Copy Winbox address</button>
                           <button className="block w-full px-4 py-3 text-left text-sm text-ink hover:bg-soft" type="button" onClick={() => enableRemote(router)}>Enable VPN WebFig</button>
@@ -213,6 +206,27 @@ export default function RoutersPage() {
       </section>
     </div>
   );
+}
+
+function TelemetryHint({ router, updated }: { router: RouterRow; updated: string }) {
+  if (router.telemetry_last_error) {
+    return <p className="mt-1 max-w-[180px] truncate text-xs text-yellow-300" title={router.telemetry_last_error}>Last update failed</p>;
+  }
+  if (!updated) return null;
+  return <p className="mt-1 text-xs text-muted/70">{updated}</p>;
+}
+
+function telemetryFreshness(router: RouterRow) {
+  if (!router.telemetry_updated_at) return "";
+  const timestamp = new Date(router.telemetry_updated_at).getTime();
+  if (!Number.isFinite(timestamp)) return "";
+  const seconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
+  if (seconds < 60) return "updated now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `updated ${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `updated ${hours}h ago`;
+  return `updated ${Math.floor(hours / 24)}d ago`;
 }
 
 async function authedFetch(path: string, init: RequestInit = {}) {
