@@ -1,0 +1,11 @@
+rules:
+  - id: no-dangerous-html
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: Untrusted HTML must not be rendered without sanitization.
+    pattern: dangerouslySetInnerHTML=$X
+  - id: no-insecure-tls-option
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: TLS certificate validation must not be disabled.
+    pattern: rejectUnauthorized: false

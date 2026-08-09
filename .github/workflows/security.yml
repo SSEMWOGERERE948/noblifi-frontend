@@ -1,0 +1,62 @@
+name: Security baseline
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  frontend-clean-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Passing security tests
+        run: npm run test:security -- --exclude tests/known-findings.security.test.ts
+      - run: npm run build
+      - name: Dependency check
+        run: npm audit --omit=dev
+
+  known-findings-advisory:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Reproduce known frontend findings
+        run: npm run test:security -- tests/known-findings.security.test.ts
+      - name: Advisory remediation summary
+        if: always()
+        run: cat docs/security-audit.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: frontend-security-audit
+          path: docs/
+
+  security-scanners-advisory:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: semgrep/semgrep-action@v1
+        continue-on-error: true
+        with:
+          config: .semgrep/security.yml
+      - uses: gitleaks/gitleaks-action@v2
+        if: always()
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
