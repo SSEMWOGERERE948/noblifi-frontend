@@ -1,36 +1,68 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 
 const items = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/routers", label: "Routers" },
-  { href: "/usage-analytics", label: "Usage Analytics" },
-  { href: "/sales", label: "Sales" },
-  { href: "/users", label: "Users" },
-  { href: "/plans", label: "Packages" },
-  { href: "/transactions", label: "Transactions" },
-  { href: "/vouchers", label: "Vouchers" },
-  { href: "/settings", label: "Settings" }
+  { href: "/dashboard", label: "Dashboard", icon: "D" },
+  { href: "/routers", label: "Routers", icon: "R" },
+  { href: "/usage-analytics", label: "Usage Analytics", icon: "U" },
+  { href: "/support-hub", label: "Support Hub", icon: "H" },
+  { href: "/sales", label: "Sales", icon: "S" },
+  { href: "/float", label: "Float", icon: "F" },
+  { href: "/agent-pos", label: "Agent POS", icon: "A" },
+  { href: "/vouchers", label: "Vouchers", icon: "V" },
+  { href: "/remote-access", label: "Remote Access", icon: "W" },
+  { href: "/captive-templates", label: "Captive Templates", icon: "C" },
+  { href: "/sms", label: "SMS", icon: "M" },
+  { href: "/payment-gateways", label: "Payment Gateways", icon: "P" },
+  { href: "/billing", label: "Billing", icon: "B" },
+  { href: "/subscriptions", label: "Subscriptions", icon: "$" },
+  { href: "/plans", label: "Plans & Pricing", icon: "P" }
 ];
 
 export function Sidebar() {
+  const pathname = usePathname();
+
   return (
-    <aside className="flex min-h-screen w-64 flex-col border-r border-line bg-panel px-4 py-5">
-      <Link href="/dashboard" className="mb-8 text-xl font-bold tracking-normal text-ink">
+    <aside className="sticky top-0 flex h-screen w-72 shrink-0 flex-col border-r border-line bg-panel/80 px-5 py-5 backdrop-blur">
+      <Link href="/dashboard" className="mb-6 flex items-center gap-3 text-xl font-bold tracking-normal text-ink">
+        <span className="flex h-10 w-10 items-center justify-center rounded-md bg-gradient-to-br from-accent to-sky-400 text-sm font-black text-slate-950">NF</span>
         NobliFi
       </Link>
-      <nav className="space-y-1">
-        {items.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className="block rounded-md px-3 py-2 text-sm font-medium text-muted transition hover:bg-soft hover:text-ink"
-          >
-            {item.label}
-          </Link>
-        ))}
+      <div className="mb-4 rounded-md border border-line bg-soft/60 p-3">
+        <p className="text-xs uppercase text-muted">Workspace</p>
+        <p className="mt-1 text-sm font-semibold text-ink">NobliFi Admin</p>
+        <span className="mt-2 inline-block rounded bg-emerald-400/10 px-2 py-0.5 text-xs font-semibold text-accent">Admin</span>
+      </div>
+      <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
+        {items.map((item) => {
+          const active = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(`${item.href}/`));
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`flex items-center gap-3 rounded-md border-l-2 px-3 py-2.5 text-sm font-medium transition ${
+                active ? "border-accent bg-emerald-400/10 text-accent" : "border-transparent text-muted hover:bg-soft hover:text-ink"
+              }`}
+            >
+              <span className="flex h-6 w-6 items-center justify-center rounded border border-line text-xs">{item.icon}</span>
+              {item.label}
+            </Link>
+          );
+        })}
       </nav>
-      <ThemeSwitcher />
+      <div className="mt-4 space-y-3 border-t border-line pt-4">
+        <div className="rounded-md border border-line bg-soft/60 p-3">
+          <p className="font-semibold text-ink">NobliFi Admin</p>
+          <p className="text-xs text-muted">superadmin</p>
+        </div>
+        <Link href="/login" className="block rounded-md border border-line px-3 py-2 text-sm text-muted hover:bg-soft hover:text-ink">
+          Sign out
+        </Link>
+        <ThemeSwitcher />
+      </div>
     </aside>
   );
 }

@@ -4,15 +4,15 @@
 
 :root {
   color-scheme: dark;
-  --app: #050b12;
-  --panel: #0b1420;
-  --soft: #101d2c;
+  --app: #020812;
+  --panel: #081522;
+  --soft: #0d2032;
   --ink: #f8fbff;
-  --muted: #9aa8ba;
-  --line: #1f3044;
-  --brand: #7dd3fc;
-  --brand-hover: #38bdf8;
-  --accent: #34d399;
+  --muted: #9fb0c5;
+  --line: #1a3349;
+  --brand: #22d3ee;
+  --brand-hover: #20c7a8;
+  --accent: #14f1bd;
 }
 
 :root[data-theme="light"] {
@@ -48,6 +48,7 @@
 body {
   background: var(--app);
   color: var(--ink);
+  min-height: 100vh;
 }
 
 input,
@@ -66,7 +67,8 @@ textarea {
 
 .btn {
   @apply inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-semibold text-white shadow-sm transition disabled:cursor-not-allowed disabled:opacity-60;
-  background: var(--brand);
+  background: linear-gradient(135deg, var(--accent), #38bdf8);
+  color: #021018;
 }
 
 .btn:hover {
@@ -87,7 +89,25 @@ textarea {
 .panel {
   @apply rounded-lg shadow-sm;
   border: 1px solid var(--line);
-  background: var(--panel);
+  background:
+    radial-gradient(circle at top left, rgba(20, 241, 189, 0.08), transparent 34rem),
+    linear-gradient(180deg, rgba(13, 32, 50, 0.92), rgba(8, 21, 34, 0.96));
+}
+
+.app-shell {
+  background:
+    radial-gradient(circle at 20% 15%, rgba(20, 241, 189, 0.09), transparent 28rem),
+    radial-gradient(circle at 86% 4%, rgba(56, 189, 248, 0.08), transparent 32rem),
+    var(--app);
+}
+
+.metric-icon {
+  background: rgba(20, 241, 189, 0.12);
+  color: var(--accent);
+}
+
+.status-pill {
+  @apply rounded-full border px-2 py-1 text-xs font-semibold;
 }
 
 .bg-app {

@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { PageHeader } from "@/components/PageHeader";
+import { OperationsTitle, StatusBadge } from "@/components/OperationsUI";
 import { apiFetch } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
@@ -22,9 +22,9 @@ export default async function RoutersPage() {
 
   return (
     <>
-      <PageHeader
+      <OperationsTitle
         title="Routers"
-        description="Create router records, link MikroTik devices, then provision RADIUS, NAT, bridges, and ports."
+        description="Manage your network infrastructure, review scheduled router telemetry, and open remote access."
         action={
           <Link href="/routers/new" className="btn">
             Add Router
@@ -38,9 +38,10 @@ export default async function RoutersPage() {
               <tr>
                 <th className="px-4 py-3">Router</th>
                 <th className="px-4 py-3">Model / Version</th>
-                <th className="px-4 py-3">Serial</th>
                 <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Last Seen</th>
+                <th className="px-4 py-3">CPU Load</th>
+                <th className="px-4 py-3">Uptime</th>
+                <th className="px-4 py-3">Users</th>
                 <th className="px-4 py-3">Actions</th>
               </tr>
             </thead>
@@ -57,13 +58,12 @@ export default async function RoutersPage() {
                     <span className="block">{router.model ?? router.expected_model ?? "Not linked"}</span>
                     <span className="text-xs">{router.routeros_version ?? "Version pending"}</span>
                   </td>
-                  <td className="px-4 py-3 text-muted">{router.serial_number ?? "Not linked"}</td>
                   <td className="px-4 py-3">
-                    <span className="rounded-full border border-line bg-soft px-2 py-1 text-xs font-semibold text-ink">
-                      {titleCase(router.status)}
-                    </span>
+                    <StatusBadge label={titleCase(router.status)} />
                   </td>
-                  <td className="px-4 py-3 text-muted">{router.last_seen_at ? new Date(router.last_seen_at).toLocaleString() : "Never"}</td>
+                  <td className="px-4 py-3 text-muted">0%</td>
+                  <td className="px-4 py-3 text-muted">{router.last_seen_at ? new Date(router.last_seen_at).toLocaleString() : "Last update pending"}</td>
+                  <td className="px-4 py-3 text-muted">0</td>
                   <td className="px-4 py-3 text-muted">
                     <Link href={`/routers/${router.id}`} className="font-semibold text-brand">
                       Open

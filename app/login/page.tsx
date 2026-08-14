@@ -29,10 +29,14 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-app px-4">
-      <form onSubmit={submit} className="panel w-full max-w-md p-6">
-        <h1 className="text-2xl font-semibold text-ink">NobliFi Admin</h1>
-        <p className="mt-2 text-sm text-muted">Sign in to manage routers, plans, and vouchers.</p>
+    <main className="app-shell flex min-h-screen items-center justify-center px-4">
+      <form onSubmit={submit} className="panel w-full max-w-xl p-8">
+        <div className="mb-8 flex items-center justify-center gap-3">
+          <span className="flex h-12 w-12 items-center justify-center rounded-md bg-gradient-to-br from-accent to-sky-400 text-base font-black text-slate-950">NF</span>
+          <span className="text-2xl font-bold text-ink">NobliFi</span>
+        </div>
+        <h1 className="text-center text-3xl font-semibold text-ink">NobliFi Admin</h1>
+        <p className="mt-3 text-center text-sm text-muted">Sign in to manage routers, plans, and vouchers.</p>
         <label className="mt-6 block text-sm font-medium text-ink">
           Email
           <input className="field mt-2" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -41,7 +45,7 @@ export default function LoginPage() {
           Password
           <input className="field mt-2" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
         </label>
-        <button className="btn mt-6 w-full" type="submit" disabled={submitting}>
+        <button className="btn mt-6 w-full py-3" type="submit" disabled={submitting}>
           {submitting ? "Signing in..." : "Sign in"}
         </button>
         {message ? <p className="mt-4 text-sm text-red-600">{message}</p> : null}
