@@ -19,6 +19,7 @@ const items = [
   { href: "/payment-gateways", label: "Payment Gateways", icon: "P" },
   { href: "/billing", label: "Billing", icon: "B" },
   { href: "/subscriptions", label: "Subscriptions", icon: "$" },
+  { href: "/users", label: "Users", icon: "U" },
   { href: "/plans", label: "Plans & Pricing", icon: "P" }
 ];
 

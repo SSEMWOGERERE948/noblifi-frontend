@@ -28,15 +28,10 @@ export function OperationsTitle({
         <p className="mt-2 max-w-3xl text-sm text-muted">{description}</p>
       </div>
       <div className="flex flex-wrap items-center gap-3">
-        <DateRange />
         {action}
       </div>
     </header>
   );
-}
-
-export function DateRange() {
-  return <div className="rounded-md border border-line bg-panel px-4 py-2 text-sm text-ink">Aug 1, 2026 - Aug 5, 2026</div>;
 }
 
 export function MetricGrid({ metrics }: { metrics: Metric[] }) {
@@ -180,6 +175,24 @@ export function PageActions({ label }: { label: string }) {
       <button className="btn-secondary" type="button">Refresh</button>
       <button className="btn" type="button">{label}</button>
     </>
+  );
+}
+
+export function EmptyState({
+  title,
+  description,
+  action
+}: {
+  title: string;
+  description: string;
+  action?: ReactNode;
+}) {
+  return (
+    <section className="panel p-8 text-center">
+      <h2 className="text-lg font-semibold text-ink">{title}</h2>
+      <p className="mx-auto mt-2 max-w-2xl text-sm text-muted">{description}</p>
+      {action ? <div className="mt-5 flex justify-center">{action}</div> : null}
+    </section>
   );
 }
 

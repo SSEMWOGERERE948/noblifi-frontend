@@ -7,14 +7,6 @@ import { apiGet, apiPut, InterfaceInfo } from "@/lib/router-setup";
 
 const roles = ["WAN", "HOTSPOT_LAN", "STAFF_LAN", "POS_LAN", "CCTV_LAN", "DISABLED"];
 
-function isAssignableInterface(iface: InterfaceInfo) {
-  const type = (iface.type ?? "").toLowerCase();
-  const name = iface.name.toLowerCase();
-  if (type.includes("bridge") || name.includes("bridge") || name.startsWith("br-")) return false;
-  if (type.includes("loopback") || type.includes("tunnel")) return false;
-  return true;
-}
-
 export default function TopologyPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
@@ -27,17 +19,13 @@ export default function TopologyPage({ params }: { params: Promise<{ id: string 
   useEffect(() => {
     apiGet<{ interfaces: InterfaceInfo[] }>(`/api/v1/routers/${id}/interfaces`)
       .then((data) => {
-        const next = data.interfaces.filter(isAssignableInterface);
+        const next = data.interfaces;
         setInterfaces(next);
-        setAssignments(() => {
-          const seeded: Record<string, string> = {};
+        setAssignments((current) => {
+          const seeded = { ...current };
           next.forEach((iface, index) => {
-            if (index === 0) {
-              seeded[iface.name] = "WAN";
-            } else if (next.length >= 3 && index === next.length - 1) {
-              seeded[iface.name] = "STAFF_LAN";
-            } else {
-              seeded[iface.name] = "HOTSPOT_LAN";
+            if (!seeded[iface.name]) {
+              seeded[iface.name] = index === 0 ? "WAN" : index < 3 ? "HOTSPOT_LAN" : "DISABLED";
             }
           });
           return seeded;
@@ -73,7 +61,6 @@ export default function TopologyPage({ params }: { params: Promise<{ id: string 
     const names = new Set<string>();
     let wan = 0;
     let hotspot = 0;
-    let staff = 0;
     for (const iface of interfaces) {
       const role = assignments[iface.name];
       if (names.has(iface.name)) return `Duplicate interface ${iface.name}.`;
@@ -82,11 +69,9 @@ export default function TopologyPage({ params }: { params: Promise<{ id: string 
       if (iface.disabled && (role === "WAN" || role === "HOTSPOT_LAN")) return `${iface.name} is disabled and cannot be used for ${role}.`;
       if (role === "WAN") wan++;
       if (role === "HOTSPOT_LAN") hotspot++;
-      if (role === "STAFF_LAN") staff++;
     }
     if (wan !== 1) return "Exactly one WAN interface is required.";
     if (hotspot < 1) return "At least one HOTSPOT_LAN interface is required.";
-    if (interfaces.length >= 3 && staff < 1) return "Reserve at least one STAFF_LAN interface for management access before applying HotSpot.";
     return "";
   }
 
@@ -96,7 +81,7 @@ export default function TopologyPage({ params }: { params: Promise<{ id: string 
         {loading ? <p className="text-sm text-muted">Loading interfaces...</p> : null}
         {!loading && !interfaces.length ? (
           <p className="rounded-md border border-line bg-white/5 p-4 text-sm text-muted">
-            No assignable MikroTik ports were discovered. If this router is linked, refresh after the bootstrap script reports ether interfaces.
+            No real MikroTik interfaces have been discovered for this router yet. Go back to Remote Access, run the registration script on the MikroTik, then return here.
           </p>
         ) : null}
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -131,5 +116,4 @@ export default function TopologyPage({ params }: { params: Promise<{ id: string 
     </SetupShell>
   );
 }
-
 
