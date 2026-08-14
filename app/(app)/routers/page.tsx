@@ -1,9 +1,10 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useState } from "react";
 
 import { OperationsTitle, StatusBadge } from "@/components/OperationsUI";
 import { apiFetch } from "@/lib/api";
-
-export const dynamic = "force-dynamic";
 
 type RouterRow = {
   id: string;
@@ -17,8 +18,17 @@ type RouterRow = {
   last_seen_at?: string;
 };
 
-export default async function RoutersPage() {
-  const routers = await apiFetch<RouterRow[]>("/api/v1/routers");
+export default function RoutersPage() {
+  const [routers, setRouters] = useState<RouterRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    apiFetch<RouterRow[]>("/api/v1/routers")
+      .then(setRouters)
+      .catch((err) => setError(err instanceof Error ? err.message : "Could not load routers."))
+      .finally(() => setLoading(false));
+  }, []);
 
   return (
     <>
@@ -32,7 +42,9 @@ export default async function RoutersPage() {
         }
       />
       <div className="panel overflow-hidden">
-        {routers.length ? (
+        {error ? <p className="p-6 text-sm text-red-300">{error}</p> : null}
+        {loading ? <p className="p-6 text-sm text-muted">Loading routers...</p> : null}
+        {!loading && !error && routers.length ? (
           <table className="w-full min-w-[760px] text-left text-sm">
             <thead className="border-b border-line bg-soft text-xs uppercase text-muted">
               <tr>
@@ -73,11 +85,12 @@ export default async function RoutersPage() {
               ))}
             </tbody>
           </table>
-        ) : (
+        ) : null}
+        {!loading && !error && !routers.length ? (
           <div className="p-6 text-sm text-muted">
             No routers have been created yet. Add a router to generate a claim token, then open it to link the physical MikroTik.
           </div>
-        )}
+        ) : null}
       </div>
     </>
   );

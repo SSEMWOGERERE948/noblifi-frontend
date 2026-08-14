@@ -1,10 +1,11 @@
+"use client";
+
 import Link from "next/link";
+import { use, useEffect, useState } from "react";
 
 import { BootstrapScript } from "@/components/BootstrapScript";
 import { PageHeader } from "@/components/PageHeader";
 import { apiFetch } from "@/lib/api";
-
-export const dynamic = "force-dynamic";
 
 type RouterDetail = {
   id: string;
@@ -22,9 +23,25 @@ type RouterDetail = {
   network_profile?: unknown;
 };
 
-export default async function RouterDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const router = await apiFetch<RouterDetail>(`/api/v1/routers/${id}`);
+export default function RouterDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
+  const [router, setRouter] = useState<RouterDetail | null>(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    apiFetch<RouterDetail>(`/api/v1/routers/${id}`)
+      .then(setRouter)
+      .catch((err) => setError(err instanceof Error ? err.message : "Could not load router."));
+  }, [id]);
+
+  if (error) {
+    return <p className="rounded-md border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">{error}</p>;
+  }
+
+  if (!router) {
+    return <p className="text-sm text-muted">Loading router...</p>;
+  }
+
   const interfaces = router.interfaces ?? [];
   const isLinked = Boolean(router.serial_number || router.model || router.router_os_version || interfaces.length || router.status === "online" || router.status === "linked" || router.status === "provisioned");
 

@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import { API_BASE_URL } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 
 type CreatedRouter = {
   id: string;
@@ -22,20 +22,16 @@ export default function NewRouterPage() {
     event.preventDefault();
     setError("");
     setSubmitting(true);
-    const response = await fetch(`${API_BASE_URL}/api/v1/routers`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, site_name: siteName, expected_model: model })
-    });
-
-    if (!response.ok) {
+    try {
+      const created = await apiFetch<CreatedRouter>("/api/v1/routers", {
+        method: "POST",
+        body: JSON.stringify({ name, site_name: siteName, expected_model: model })
+      });
+      routerNav.push(`/routers/${created.id}`);
+    } catch {
       setError("Router could not be created.");
       setSubmitting(false);
-      return;
     }
-
-    const created = (await response.json()) as CreatedRouter;
-    routerNav.push(`/routers/${created.id}`);
   }
 
   return (
