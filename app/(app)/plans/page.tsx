@@ -12,12 +12,14 @@ type Plan = {
   upload_speed: string;
   download_speed: string;
   max_devices: number;
+  online_vouchers_created?: number;
 };
 
 export default function PlansPage() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [form, setForm] = useState({ name: "", price: "100", duration_minutes: "60", upload_speed: "5M", download_speed: "10M", max_devices: "1" });
   const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
     apiFetch<Plan[]>("/api/v1/plans", { fallback: [] })
@@ -28,6 +30,7 @@ export default function PlansPage() {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setMessage("");
     const created = await apiFetch<Plan>("/api/v1/plans", {
       method: "POST",
       body: JSON.stringify({
@@ -39,6 +42,7 @@ export default function PlansPage() {
     });
     setPlans((current) => [...current, created]);
     setForm({ ...form, name: "" });
+    setMessage(`Plan created. ${created.online_vouchers_created ?? 0} mobile money online vouchers were generated automatically.`);
   }
 
   return (
@@ -62,6 +66,7 @@ export default function PlansPage() {
           <button className="btn" type="submit">Create plan</button>
         </div>
       </form>
+      {message ? <p className="mt-4 rounded-md border border-emerald-400/30 bg-emerald-400/10 p-3 text-sm text-accent">{message}</p> : null}
       <section className="mt-5">
         <h2 className="mb-3 text-lg font-semibold text-ink">Current plans</h2>
         {loading ? <p className="text-sm text-muted">Loading plans...</p> : null}
