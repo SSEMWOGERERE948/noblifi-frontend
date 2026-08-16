@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { DataTable, EmptyState, OperationsTitle, StatusBadge } from "@/components/OperationsUI";
 import { apiFetch } from "@/lib/api";
 
@@ -16,6 +17,7 @@ type Plan = {
 };
 
 export default function PlansPage() {
+  const router = useRouter();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [form, setForm] = useState({ name: "", price: "100", duration_minutes: "60", upload_speed: "5M", download_speed: "10M", max_devices: "1" });
   const [loading, setLoading] = useState(true);
@@ -31,23 +33,37 @@ export default function PlansPage() {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage("");
-    const created = await apiFetch<Plan>("/api/v1/plans", {
-      method: "POST",
-      body: JSON.stringify({
-        ...form,
-        price: Number(form.price),
-        duration_minutes: Number(form.duration_minutes),
-        max_devices: Number(form.max_devices)
-      })
-    });
-    setPlans((current) => [...current, created]);
-    setForm({ ...form, name: "" });
-    setMessage(`Plan created. ${created.online_vouchers_created ?? 0} mobile money online vouchers were generated automatically.`);
+
+    try {
+      const created = await apiFetch<Plan>("/api/v1/plans", {
+        method: "POST",
+        body: JSON.stringify({
+          ...form,
+          price: Number(form.price),
+          duration_minutes: Number(form.duration_minutes),
+          max_devices: Number(form.max_devices)
+        })
+      });
+      setPlans((current) => [...current, created]);
+      setForm({ ...form, name: "" });
+      setMessage(`Plan created. ${created.online_vouchers_created ?? 0} mobile money online vouchers were generated automatically.`);
+    } catch (error) {
+      const fallbackMessage = "Your free trial has expired. Please subscribe to continue.";
+      const nextMessage = error instanceof Error ? error.message : fallbackMessage;
+      setMessage(nextMessage);
+    }
   }
 
   return (
     <>
       <OperationsTitle title="Plans" description="Create and manage real hotspot voucher plans from the API." />
+      {message ? (
+        <div className="mb-5 rounded-md border border-amber-500/40 bg-amber-500/10 p-4">
+          <p className="text-sm font-semibold text-amber-200">Subscription required</p>
+          <p className="mt-2 text-sm text-amber-100/90">{message}</p>
+          <button type="button" className="btn mt-4" onClick={() => router.push("/subscriptions")}>Go to subscriptions</button>
+        </div>
+      ) : null}
       <form onSubmit={submit} className="panel grid gap-4 p-5 md:grid-cols-3">
         {[
           ["name", "Name"],

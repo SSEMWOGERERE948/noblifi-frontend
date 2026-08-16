@@ -45,6 +45,11 @@ export default function LoginPage() {
           Password
           <input className="field mt-2" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
         </label>
+        <div className="mt-3 text-right">
+          <Link href="/forgot-password" className="text-sm font-semibold text-brand">
+            Forgot password?
+          </Link>
+        </div>
         <button className="btn mt-6 w-full py-3" type="submit" disabled={submitting}>
           {submitting ? "Signing in..." : "Sign in"}
         </button>

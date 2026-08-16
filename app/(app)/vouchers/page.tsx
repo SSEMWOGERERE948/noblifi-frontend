@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { DataTable, EmptyState, OperationsTitle, StatusBadge } from "@/components/OperationsUI";
 import { apiFetch } from "@/lib/api";
 
@@ -29,6 +30,7 @@ const patterns = [
 ];
 
 export default function VouchersPage() {
+  const router = useRouter();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [vouchers, setVouchers] = useState<Voucher[]>([]);
   const [planId, setPlanId] = useState("");
@@ -36,6 +38,7 @@ export default function VouchersPage() {
   const [template, setTemplate] = useState("compact");
   const [pattern, setPattern] = useState("alphanumeric");
   const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
     Promise.all([
@@ -56,16 +59,31 @@ export default function VouchersPage() {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const generated = await apiFetch<Voucher[]>("/api/v1/vouchers/generate", {
-      method: "POST",
-      body: JSON.stringify({ plan_id: planId, quantity: Number(quantity), template, pattern })
-    });
-    setVouchers((current) => [...generated, ...current]);
+    setMessage("");
+
+    try {
+      const generated = await apiFetch<Voucher[]>("/api/v1/vouchers/generate", {
+        method: "POST",
+        body: JSON.stringify({ plan_id: planId, quantity: Number(quantity), template, pattern })
+      });
+      setVouchers((current) => [...generated, ...current]);
+    } catch (error) {
+      const fallbackMessage = "Your free trial has expired. Please subscribe to continue.";
+      const nextMessage = error instanceof Error ? error.message : fallbackMessage;
+      setMessage(nextMessage);
+    }
   }
 
   return (
     <>
       <OperationsTitle title="Vouchers" description="Mobile money online vouchers are generated automatically when a package is created. Use this page to create printable physical voucher batches." action={<button className="btn" type="submit" form="voucher-form">Generate physical vouchers</button>} />
+      {message ? (
+        <div className="mb-5 rounded-md border border-amber-500/40 bg-amber-500/10 p-4">
+          <p className="text-sm font-semibold text-amber-200">Subscription required</p>
+          <p className="mt-2 text-sm text-amber-100/90">{message}</p>
+          <button type="button" className="btn mt-4" onClick={() => router.push("/subscriptions")}>Go to subscriptions</button>
+        </div>
+      ) : null}
       <form id="voucher-form" onSubmit={submit} className="panel grid gap-5 p-5">
         <div className="grid gap-4 md:grid-cols-3">
           {templates.map((option) => (

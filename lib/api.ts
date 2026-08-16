@@ -1,4 +1,5 @@
-export const API_BASE_URL = normalizeBaseUrl(process.env.NEXT_PUBLIC_API_BASE_URL ?? "https://noblifi.ew.r.appspot.com");
+// export const API_BASE_URL = normalizeBaseUrl(process.env.NEXT_PUBLIC_API_BASE_URL ?? "https://noblifi.ew.r.appspot.com");
+export const API_BASE_URL = normalizeBaseUrl(process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8080");
 
 type FetchOptions = RequestInit & {
   fallback?: unknown;
@@ -39,7 +40,7 @@ export async function apiFetch<T>(
 
     if (!response.ok) {
       const text = await response.text();
-      throw new Error(text || `Request failed with ${response.status}`);
+      throw new Error(parseApiErrorMessage(text, response.status));
     }
 
     if (response.status === 204) {
@@ -58,6 +59,22 @@ export async function apiFetch<T>(
 
     throw new Error(`Unable to reach ${API_BASE_URL}${path}`);
   }
+}
+
+function parseApiErrorMessage(text: string, status: number) {
+  if (!text) {
+    return `Request failed with ${status}`;
+  }
+
+  try {
+    const payload = JSON.parse(text) as { error?: string; message?: string };
+    if (payload.error) return payload.error;
+    if (payload.message) return payload.message;
+  } catch {
+    // Ignore JSON parse errors and fall back to the raw text.
+  }
+
+  return text;
 }
 
 function normalizeBaseUrl(url: string) {
