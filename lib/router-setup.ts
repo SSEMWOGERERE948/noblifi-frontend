@@ -1,20 +1,8 @@
-import { API_BASE_URL } from "@/lib/api";
-import { getToken } from "@/lib/auth";
-
-export class ApiError extends Error {
-  status: number;
-
-  constructor(status: number, message: string) {
-    super(message);
-    this.name = "ApiError";
-    this.status = status;
-  }
-}
+import { apiFetch } from "@/lib/api";
 
 export type InterfaceInfo = {
   name: string;
   type?: string;
-  mac_address?: string | null;
   running: boolean;
   disabled: boolean;
 };
@@ -29,59 +17,20 @@ export type ConfigPreview = {
   script: string;
 };
 
-export type WireGuardSetup = {
-  enabled: boolean;
-  ready: boolean;
-  issues: string[];
-  status: string;
-  interface_name: string;
-  endpoint: string;
-  endpoint_port: number;
-  router_address: string;
-  server_address: string;
-  router_public_key: string;
-  mikrotik_install_command: string;
-  mikrotik_script: string;
-  vps_peer_command: string;
-  vps_peer_config: string;
-  verification_commands: string;
-};
-
 export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  return apiFetch<T>(path, {
     method: "POST",
-    headers: authHeaders(),
     body: body ? JSON.stringify(body) : undefined
   });
-  return parseResponse<T>(response);
 }
 
 export async function apiPut<T>(path: string, body: unknown): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  return apiFetch<T>(path, {
     method: "PUT",
-    headers: authHeaders(),
     body: JSON.stringify(body)
   });
-  return parseResponse<T>(response);
 }
 
 export async function apiGet<T>(path: string): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, { headers: authHeaders(), cache: "no-store" });
-  return parseResponse<T>(response);
+  return apiFetch<T>(path);
 }
-
-function authHeaders() {
-  return {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${getToken() || ""}`
-  };
-}
-
-async function parseResponse<T>(response: Response): Promise<T> {
-  if (!response.ok) {
-    const text = await response.text();
-    throw new ApiError(response.status, text || `Request failed with ${response.status}`);
-  }
-  return (await response.json()) as T;
-}
-

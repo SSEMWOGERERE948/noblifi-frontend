@@ -1,14 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { use, useEffect, useState } from "react";
 
 import { BootstrapScript } from "@/components/BootstrapScript";
-import { DeleteRouterPanel } from "@/components/DeleteRouterPanel";
 import { PageHeader } from "@/components/PageHeader";
-import { API_BASE_URL } from "@/lib/api";
-import { getToken } from "@/lib/auth";
+import { apiFetch } from "@/lib/api";
 
 type RouterDetail = {
   id: string;
@@ -17,10 +14,7 @@ type RouterDetail = {
   expected_model?: string;
   model?: string;
   serial_number?: string;
-  routeros_version?: string;
-  management_ip?: string;
-  wireguard_tunnel_ip?: string;
-  wireguard_status?: string;
+  router_os_version?: string;
   status: string;
   claim_token: string;
   config_status?: string;
@@ -29,37 +23,27 @@ type RouterDetail = {
   network_profile?: unknown;
 };
 
-export default function RouterDetailPage() {
-  const params = useParams<{ id: string }>();
-  const id = params.id;
+export default function RouterDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
   const [router, setRouter] = useState<RouterDetail | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    async function loadRouter() {
-      const response = await fetch(`${API_BASE_URL}/api/v1/routers/${id}`, {
-        headers: { Authorization: `Bearer ${getToken() || ""}` },
-        cache: "no-store"
-      }).catch(() => null);
-      if (!response?.ok) {
-        setError("Could not load this router for your account.");
-        return;
-      }
-      setRouter(await response.json());
-    }
-    loadRouter();
+    apiFetch<RouterDetail>(`/api/v1/routers/${id}`)
+      .then(setRouter)
+      .catch((err) => setError(err instanceof Error ? err.message : "Could not load router."));
   }, [id]);
 
   if (error) {
-    return <div className="panel p-6 text-sm text-red-300">{error}</div>;
+    return <p className="rounded-md border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">{error}</p>;
   }
 
   if (!router) {
-    return <div className="panel p-6 text-sm text-muted">Loading router...</div>;
+    return <p className="text-sm text-muted">Loading router...</p>;
   }
 
   const interfaces = router.interfaces ?? [];
-  const isLinked = Boolean(router.serial_number || router.model || router.routeros_version || interfaces.length || router.status === "online" || router.status === "linked" || router.status === "provisioned");
+  const isLinked = Boolean(router.serial_number || router.model || router.router_os_version || interfaces.length || router.status === "online" || router.status === "linked" || router.status === "provisioned");
 
   return (
     <>
@@ -92,10 +76,7 @@ export default function RouterDetailPage() {
               ["Expected Model", router.expected_model ?? "-"],
               ["Detected Model", router.model ?? "Not linked yet"],
               ["Serial Number", router.serial_number ?? "Not linked yet"],
-              ["RouterOS", router.routeros_version ?? "Not linked yet"],
-              ["Management IP", router.management_ip ?? "Not connected"],
-              ["WireGuard IP", router.wireguard_tunnel_ip ?? "Not prepared"],
-              ["WireGuard", (router.wireguard_status ?? "disabled").replaceAll("_", " ")],
+              ["RouterOS", router.router_os_version ?? "Not linked yet"],
               ["Status", router.status],
               ["Claim Token", router.claim_token],
               ["Setup Step", router.setup_session?.current_step ?? "Not started"],
@@ -138,7 +119,6 @@ export default function RouterDetailPage() {
         <h2 className="mb-3 text-lg font-semibold text-ink">Registration Script</h2>
         <BootstrapScript token={router.claim_token} />
       </section>
-      <DeleteRouterPanel routerId={router.id} routerName={router.name} />
     </>
   );
 }
