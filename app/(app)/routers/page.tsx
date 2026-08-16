@@ -187,7 +187,7 @@ export default function RoutersPage() {
                           <button className="block w-full px-4 py-3 text-left text-sm text-ink hover:bg-soft" type="button" onClick={() => rename(router)}>Rename</button>
                           <div className="border-t border-line px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted">Remote access</div>
                           <button className="block w-full px-4 py-3 text-left text-sm text-ink hover:bg-soft" type="button" onClick={() => remote(router, "copy")}>Copy Winbox address</button>
-                          <button className="block w-full px-4 py-3 text-left text-sm text-ink hover:bg-soft" type="button" onClick={() => enableRemote(router)}>Enable VPN WebFig</button>
+                          <button className="block w-full px-4 py-3 text-left text-sm text-ink hover:bg-soft" type="button" onClick={() => enableRemote(router)}>Enable VPN access</button>
                           <button className="block w-full px-4 py-3 text-left text-sm text-ink hover:bg-soft" type="button" onClick={() => remote(router, "web")}>Open WebFig</button>
                           <button className="block w-full px-4 py-3 text-left text-sm text-ink hover:bg-soft" type="button" onClick={() => testConnection(router)}>Test connection</button>
                           <button className="block w-full px-4 py-3 text-left text-sm text-ink hover:bg-soft" type="button" onClick={() => updatePassword(router)}>Update admin password</button>
@@ -210,10 +210,21 @@ export default function RoutersPage() {
 
 function TelemetryHint({ router, updated }: { router: RouterRow; updated: string }) {
   if (router.telemetry_last_error) {
+    if (isWireGuardRouter(router) && isAppEngineTunnelError(router.telemetry_last_error) && !router.telemetry_updated_at) {
+      return <p className="mt-1 max-w-[180px] truncate text-xs text-muted/70" title="Telemetry will update after the VPS agent scheduler posts a router snapshot.">Waiting for agent</p>;
+    }
     return <p className="mt-1 max-w-[180px] truncate text-xs text-yellow-300" title={router.telemetry_last_error}>Last update failed</p>;
   }
   if (!updated) return null;
   return <p className="mt-1 text-xs text-muted/70">{updated}</p>;
+}
+
+function isWireGuardRouter(router: RouterRow) {
+  return Boolean(router.wireguard_tunnel_ip || router.management_ip?.startsWith("10.77."));
+}
+
+function isAppEngineTunnelError(error: string) {
+  return error.includes("10.77.") && (error.includes("i/o timeout") || error.includes("timed out"));
 }
 
 function telemetryFreshness(router: RouterRow) {

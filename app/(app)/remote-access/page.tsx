@@ -62,7 +62,7 @@ export default function RemoteAccessPage() {
   }
 
   async function enable(router: RouterRow) {
-    setMessage(`Enabling VPN remote access for ${router.name}...`);
+    setMessage(`Enabling remote WinBox access for ${router.name}...`);
     const response = await authedFetch(`/api/v1/routers/${router.id}/remote-access/enable`, { method: "POST" });
     if (!response.ok) {
       setMessage(await readError(response, "Could not enable VPN remote access."));
@@ -70,7 +70,7 @@ export default function RemoteAccessPage() {
     }
     const detail = (await response.json()) as RemoteAccess;
     setDetails((current) => ({ ...current, [router.id]: detail }));
-    setMessage(`VPN remote access queued for ${router.name}. The public WebFig URL is ${detail.web_url}`);
+    setMessage(`Remote WinBox access queued for ${router.name}. Connect To: ${detail.winbox_address}`);
   }
 
   return (
@@ -95,7 +95,7 @@ export default function RemoteAccessPage() {
                   <dd className="font-medium text-ink">{detail?.address || router.wireguard_tunnel_ip || router.management_ip || "Not ready"}</dd>
                 </div>
                 <div className="flex justify-between gap-4 border-b border-line pb-2">
-                  <dt className="text-muted">Winbox</dt>
+                  <dt className="text-muted">WinBox Connect To</dt>
                   <dd className="font-medium text-ink">{detail?.winbox_address || "Not ready"}</dd>
                 </div>
                 <div className="flex justify-between gap-4 border-b border-line pb-2">
@@ -104,10 +104,8 @@ export default function RemoteAccessPage() {
                 </div>
               </dl>
               <div className="mt-5 flex flex-wrap gap-2">
-                <button className="btn" type="button" onClick={() => enable(router)}>Enable VPN access</button>
-                <button className="btn-secondary" type="button" disabled={!detail?.winbox_address} onClick={() => detail && copy(detail.winbox_address)}>Copy Winbox</button>
-                <button className="btn-secondary" type="button" disabled={!detail?.web_url} onClick={() => detail && copy(detail.web_url)}>Copy WebFig URL</button>
-                <button className="btn-secondary" type="button" disabled={!detail?.web_url} onClick={() => detail && window.open(detail.web_url, "_blank", "noopener,noreferrer")}>Open WebFig</button>
+                <button className="btn" type="button" onClick={() => enable(router)}>Enable WinBox access</button>
+                <button className="btn-secondary" type="button" disabled={!detail?.winbox_address} onClick={() => detail && copy(detail.winbox_address)}>Copy WinBox address</button>
                 <button className="btn-secondary" type="button" onClick={() => test(router)}>Test connection</button>
               </div>
             </div>
