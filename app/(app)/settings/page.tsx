@@ -3,18 +3,28 @@
 import { FormEvent, useEffect, useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
 import { API_BASE_URL } from "@/lib/api";
-import { getStoredUser, getToken, saveSession } from "@/lib/auth";
+import { getStoredUser, getToken, saveSession, type AuthUser } from "@/lib/auth";
 
 export default function SettingsPage() {
-  const savedUser = getStoredUser();
+  const [savedUser, setSavedUser] = useState<AuthUser | null>(null);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [portalName, setPortalName] = useState(savedUser?.hotspot_name || savedUser?.name || "");
+  const [portalName, setPortalName] = useState("");
   const [subscriptionPrice, setSubscriptionPrice] = useState("25000");
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [savingPrice, setSavingPrice] = useState(false);
+
+  // Read localStorage-backed session only on the client, after mount.
+  // Calling getStoredUser() directly in the render body would execute
+  // during Next.js's server-side prerender pass, where localStorage
+  // does not exist, and crash the build.
+  useEffect(() => {
+    const user = getStoredUser();
+    setSavedUser(user);
+    setPortalName(user?.hotspot_name || user?.name || "");
+  }, []);
 
   useEffect(() => {
     const token = getToken();
@@ -84,6 +94,7 @@ export default function SettingsPage() {
     const token = getToken();
     if (token && body.user) {
       saveSession({ token, user: body.user });
+      setSavedUser(body.user);
     }
     setMessage("Portal name saved.");
   }

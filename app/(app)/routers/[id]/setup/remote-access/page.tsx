@@ -9,7 +9,11 @@ import { ApiError, apiGet, apiPost, WireGuardSetup } from "@/lib/router-setup";
 
 type RemoteAccessMethod = "wireguard" | "bootstrap" | "direct_api";
 
-export default function RemoteAccessPage({ params }: { params: Promise<{ id: string }> }) {
+export default function RemoteAccessPage({
+  params
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const { id } = use(params);
   const router = useRouter();
   const [method, setMethod] = useState<RemoteAccessMethod>("wireguard");
@@ -86,6 +90,9 @@ export default function RemoteAccessPage({ params }: { params: Promise<{ id: str
     }
   }
 
+  const wireGuardIssues = wireGuard?.issues ?? [];
+  const wireGuardStatus = wireGuard?.status ?? "waiting_for_handshake";
+
   return (
     <SetupShell
       title="Secure Remote Access"
@@ -150,11 +157,13 @@ export default function RemoteAccessPage({ params }: { params: Promise<{ id: str
 
         {method === "wireguard" ? (
           <section className="space-y-5">
-            {wireGuard?.issues.length ? (
+            {wireGuardIssues.length > 0 ? (
               <div className="rounded-md border border-amber-400/40 bg-amber-400/10 p-4 text-sm text-amber-200">
                 <p className="font-semibold">The VPS WireGuard environment is incomplete.</p>
                 <ul className="mt-2 space-y-1">
-                  {wireGuard.issues.map((issue) => <li key={issue}>{issue}</li>)}
+                  {wireGuardIssues.map((issue) => (
+                    <li key={issue}>{issue}</li>
+                  ))}
                 </ul>
                 <div className="mt-4 space-y-3">
                   <p className="font-semibold">Set these on the backend after preparing the VPS:</p>
@@ -177,19 +186,20 @@ NOBLIFI_RADIUS_SERVER=10.77.0.1`}
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                   <div className="panel p-4">
                     <p className="text-xs font-semibold uppercase text-muted">VPS endpoint</p>
-                    <p className="mt-2 font-semibold text-ink">{wireGuard.endpoint}:{wireGuard.endpoint_port}</p>
+                    <p className="mt-2 font-semibold text-ink">{wireGuard.endpoint ?? "Not configured"}:
+                    {wireGuard.endpoint_port ?? "-"}</p>
                   </div>
                   <div className="panel p-4">
                     <p className="text-xs font-semibold uppercase text-muted">VPS tunnel IP</p>
-                    <p className="mt-2 font-semibold text-ink">{wireGuard.server_address}</p>
+                    <p className="mt-2 font-semibold text-ink">{wireGuard.server_address ?? "-"}</p>
                   </div>
                   <div className="panel p-4">
                     <p className="text-xs font-semibold uppercase text-muted">Router tunnel IP</p>
-                    <p className="mt-2 font-semibold text-ink">{wireGuard.router_address}</p>
+                    <p className="mt-2 font-semibold text-ink">{wireGuard.router_address ?? "-"}</p>
                   </div>
                   <div className="panel p-4">
                     <p className="text-xs font-semibold uppercase text-muted">Status</p>
-                    <p className="mt-2 font-semibold text-ink">{wireGuard.status.replaceAll("_", " ")}</p>
+                    <p className="mt-2 font-semibold text-ink">{wireGuardStatus.replaceAll("_", " ")}</p>
                   </div>
                 </div>
 
@@ -200,8 +210,8 @@ NOBLIFI_RADIUS_SERVER=10.77.0.1`}
                       RouterOS 7 only. This fetches an idempotent script and leaves WAN, physical ports, bridges, DHCP, and the default route unchanged.
                     </p>
                   </div>
-                  <CodeBlock code={wireGuard.mikrotik_install_command} />
-                  <CodeBlock code={wireGuard.mikrotik_script} filename="noblifi-wireguard.rsc" />
+                  <CodeBlock code={wireGuard.mikrotik_install_command ?? ""} />
+                  <CodeBlock code={wireGuard.mikrotik_script ?? ""} filename="noblifi-wireguard.rsc" />
                 </div>
 
                 {wireGuard.router_public_key ? (
@@ -212,17 +222,17 @@ NOBLIFI_RADIUS_SERVER=10.77.0.1`}
                         The xneelo agent normally installs this peer automatically. Use this command only to recover a failed agent path.
                       </p>
                     </div>
-                    <CodeBlock code={wireGuard.vps_peer_command} />
+                    <CodeBlock code={wireGuard.vps_peer_command ?? ""} />
                     <details className="panel p-4">
                       <summary className="cursor-pointer text-sm font-semibold text-ink">Emergency manual wg0 peer block</summary>
-                      <div className="mt-3"><CodeBlock code={wireGuard.vps_peer_config} /></div>
+                      <div className="mt-3"><CodeBlock code={wireGuard.vps_peer_config ?? ""} /></div>
                     </details>
                     <div>
                       <h2 className="mb-3 text-lg font-semibold text-ink">3. Verify from the VPS</h2>
-                      <CodeBlock code={wireGuard.verification_commands} />
+                      <CodeBlock code={wireGuard.verification_commands ?? ""} />
                     </div>
-                    <p className={`rounded-md border p-4 text-sm ${wireGuard.status === "connected" ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-200" : "border-cyan-300/30 bg-cyan-300/10 text-cyan-100"}`}>
-                      {wireGuard.status === "connected"
+                    <p className={`rounded-md border p-4 text-sm ${wireGuardStatus === "connected" ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-200" : "border-cyan-300/30 bg-cyan-300/10 text-cyan-100"}`}>
+                      {wireGuardStatus === "connected"
                         ? "WireGuard handshake verified. The VPS can reach this MikroTik over its private tunnel address."
                         : "Waiting for the xneelo agent to install the peer and for the MikroTik to report a current handshake."}
                     </p>
