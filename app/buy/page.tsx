@@ -8,8 +8,6 @@ type Plan = {
   name: string;
   price: number;
   duration_minutes: number;
-  download_speed: string;
-  upload_speed: string;
   is_active: boolean;
 };
 
@@ -36,10 +34,17 @@ type PaymentStatus = {
 
 const trackingKey = "noblifi_iotec_tracking";
 
-export default function BuyVoucherPage() {
-  const [plans, setPlans] = useState<Plan[]>([]);
+const subscriptionPlan: Plan = {
+  id: "subscription",
+  name: "NobliFi Monthly",
+  price: 25000,
+  duration_minutes: 30 * 24 * 60,
+  is_active: true
+};
+
+export default function SubscriptionPaymentPage() {
   const [config, setConfig] = useState<PaymentConfig | null>(null);
-  const [selectedPlanId, setSelectedPlanId] = useState("");
+  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(true);
@@ -48,33 +53,27 @@ export default function BuyVoucherPage() {
   const [status, setStatus] = useState<PaymentStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const activePlans = useMemo(
-    () => plans.filter((plan) => plan.is_active).sort((a, b) => a.price - b.price),
-    [plans]
-  );
-  const selectedPlan = activePlans.find((plan) => plan.id === selectedPlanId);
+  const activePlans = useMemo(() => [subscriptionPlan], []);
+  const selectedPlan = activePlans.find((plan) => plan.id === selectedPlanId) ?? null;
 
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
       try {
-        const [configResponse, plansResponse] = await Promise.all([
-          fetch(`${API_BASE_URL}/api/v1/payments/config`, { cache: "no-store" }),
-          fetch(`${API_BASE_URL}/api/v1/plans`, { cache: "no-store" })
-        ]);
-
-        const paymentConfig = (await configResponse.json()) as PaymentConfig;
-        const planList = (await plansResponse.json()) as Plan[];
+        const configResponse = await fetch(`${API_BASE_URL}/api/v1/payments/config`, { cache: "no-store" });
+        const paymentConfig = (await configResponse.json().catch(() => null)) as PaymentConfig | null;
         if (cancelled) return;
 
+        if (!configResponse.ok || !paymentConfig) {
+          throw new Error((paymentConfig as { message?: string } | null)?.message || "Payment configuration could not be loaded.");
+        }
+
         setConfig(paymentConfig);
-        setPlans(planList);
-        const requestedPlanID = new URLSearchParams(window.location.search).get("plan_id");
-        const requestedPlan = planList.find((plan) => plan.is_active && plan.id === requestedPlanID);
-        setSelectedPlanId((current) => current || requestedPlan?.id || planList.find((plan) => plan.is_active)?.id || "");
-      } catch {
-        if (!cancelled) setError("Could not load packages. Please try again.");
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Could not load payment configuration.");
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -176,8 +175,8 @@ export default function BuyVoucherPage() {
   return (
     <main className="min-h-screen bg-app px-4 py-8 text-ink">
       <div className="mx-auto w-full max-w-2xl">
-        <h1 className="text-2xl font-semibold">Buy WiFi Voucher</h1>
-        <p className="mt-2 text-sm text-muted">Choose a package and pay securely with ioTec Pay.</p>
+        <h1 className="text-2xl font-semibold">NobliFi Subscription</h1>
+        <p className="mt-2 text-sm text-muted">Choose your subscription and complete the payment securely with ioTec Pay.</p>
 
         {error ? (
           <div className="panel mt-5 border-red-400/40 bg-red-500/10 p-4 text-sm text-red-300">{error}</div>
@@ -208,10 +207,6 @@ export default function BuyVoucherPage() {
             <p className="text-sm text-red-300">ioTec Pay is not configured on the backend.</p>
           ) : null}
 
-          {!loading && activePlans.length === 0 ? (
-            <p className="text-sm text-muted">No active packages are available.</p>
-          ) : null}
-
           <div className="grid gap-3">
             {activePlans.map((plan) => (
               <label
@@ -226,13 +221,17 @@ export default function BuyVoucherPage() {
                   name="plan"
                   value={plan.id}
                   checked={selectedPlanId === plan.id}
-                  onChange={() => setSelectedPlanId(plan.id)}
+                  onChange={() => {
+                    setSelectedPlanId(plan.id);
+                    setError(null);
+                    setStatus(null);
+                  }}
                 />
                 <span className="flex items-start justify-between gap-3">
                   <span>
                     <span className="block font-semibold">{plan.name}</span>
                     <span className="mt-1 block text-sm text-muted">
-                      {formatDuration(plan.duration_minutes)} - {plan.download_speed} down
+                      {formatDuration(plan.duration_minutes)}
                     </span>
                   </span>
                   <span className="font-bold text-brand">
@@ -243,35 +242,44 @@ export default function BuyVoucherPage() {
             ))}
           </div>
 
-          <div className="mt-5 grid gap-4 md:grid-cols-2">
-            <label className="text-sm font-medium">
-              Phone
-              <input
-                className="field mt-2"
-                required
-                value={phone}
-                onChange={(event) => setPhone(event.target.value)}
-                placeholder="0111777777"
-              />
-            </label>
-            <label className="text-sm font-medium">
-              Email
-              <input
-                className="field mt-2"
-                type="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                placeholder="you@example.com"
-              />
-            </label>
-          </div>
+          {selectedPlanId && (
+            <>
+              <div className="mt-6 border-t border-line pt-6">
+                <p className="text-sm font-semibold">Payment Details</p>
+                <p className="mt-1 text-xs text-muted">Enter your contact information for ioTec payment processing</p>
+              </div>
+
+              <div className="mt-5 grid gap-4 md:grid-cols-2">
+                <label className="text-sm font-medium">
+                  Phone
+                  <input
+                    className="field mt-2"
+                    required
+                    value={phone}
+                    onChange={(event) => setPhone(event.target.value)}
+                    placeholder="0111777777"
+                  />
+                </label>
+                <label className="text-sm font-medium">
+                  Email
+                  <input
+                    className="field mt-2"
+                    type="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    placeholder="you@example.com"
+                  />
+                </label>
+              </div>
+            </>
+          )}
 
           <button
             className="btn mt-5 w-full"
             type="submit"
             disabled={!config?.configured || !selectedPlan || submitting}
           >
-            {submitting ? "Starting ioTec payment..." : "Pay with ioTec"}
+            {submitting ? "Processing payment..." : "Pay with ioTec"}
           </button>
         </form>
       </div>

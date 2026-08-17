@@ -1,18 +1,39 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
 import { API_BASE_URL } from "@/lib/api";
-import { getSavedUser, getToken, saveSession } from "@/lib/auth";
+import { getStoredUser, getToken, saveSession } from "@/lib/auth";
 
 export default function SettingsPage() {
-  const savedUser = getSavedUser();
+  const savedUser = getStoredUser();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [portalName, setPortalName] = useState(savedUser?.portal_name || savedUser?.name || "");
+  const [portalName, setPortalName] = useState(savedUser?.hotspot_name || savedUser?.name || "");
+  const [subscriptionPrice, setSubscriptionPrice] = useState("25000");
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [savingPrice, setSavingPrice] = useState(false);
+
+  useEffect(() => {
+    const token = getToken();
+    if (!token) return;
+
+    fetch(`${API_BASE_URL}/api/v1/settings/subscription-price`, {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    })
+      .then(async (response) => {
+        if (!response.ok) return;
+        const body = (await response.json()) as { monthly_price_ugx?: number };
+        if (typeof body.monthly_price_ugx === "number") {
+          setSubscriptionPrice(String(body.monthly_price_ugx));
+        }
+      })
+      .catch(() => undefined);
+  }, []);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -67,6 +88,37 @@ export default function SettingsPage() {
     setMessage("Portal name saved.");
   }
 
+  async function saveSubscriptionPrice() {
+    setMessage("");
+    const numericValue = Number(subscriptionPrice);
+    if (!Number.isFinite(numericValue) || numericValue <= 0) {
+      setMessage("Subscription price must be greater than zero.");
+      return;
+    }
+
+    setSavingPrice(true);
+    const response = await fetch(`${API_BASE_URL}/api/v1/settings/subscription-price`, {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${getToken() || ""}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ monthly_price_ugx: numericValue })
+    });
+    setSavingPrice(false);
+
+    if (!response.ok) {
+      setMessage((await response.json().catch(() => ({ error: "Could not update subscription price." }))).error || "Could not update subscription price.");
+      return;
+    }
+
+    const body = (await response.json()) as { monthly_price_ugx?: number };
+    if (typeof body.monthly_price_ugx === "number") {
+      setSubscriptionPrice(String(body.monthly_price_ugx));
+    }
+    setMessage("Subscription price saved.");
+  }
+
   return (
     <>
       <PageHeader title="Settings" description="Manage your account security." />
@@ -79,6 +131,24 @@ export default function SettingsPage() {
         </label>
         <button className="btn mt-4" type="button" onClick={savePortalName}>
           Save portal name
+        </button>
+      </section>
+      <section className="panel mb-6 max-w-xl p-5">
+        <h2 className="text-lg font-semibold text-ink">Subscription pricing</h2>
+        <p className="mt-1 text-sm text-muted">This is the default monthly subscription price for new subscriptions. The default is 25,000 UGX.</p>
+        <label className="mt-4 block text-sm font-medium text-ink">
+          Monthly subscription price (UGX)
+          <input
+            className="field mt-2"
+            type="number"
+            min={1}
+            step={100}
+            value={subscriptionPrice}
+            onChange={(event) => setSubscriptionPrice(event.target.value)}
+          />
+        </label>
+        <button className="btn mt-4" type="button" onClick={saveSubscriptionPrice} disabled={savingPrice}>
+          {savingPrice ? "Saving..." : "Save subscription price"}
         </button>
       </section>
       <form onSubmit={submit} className="panel max-w-xl p-5">
