@@ -11,10 +11,23 @@ import {
   apiFetch,
 } from "@/lib/api";
 
+import {
+  getToken,
+} from "@/lib/auth";
+
+type DurationUnit =
+  | "minutes"
+  | "hours"
+  | "weeks"
+  | "months";
+
 type Plan = {
   id: string;
   name: string;
   price: number;
+
+  duration_value: number;
+  duration_unit: DurationUnit;
   duration_minutes: number;
 
   upload_speed: string;
@@ -29,15 +42,8 @@ type Plan = {
   online_vouchers_created?: number;
 };
 
-type DurationUnit =
-  | "minutes"
-  | "hours"
-  | "weeks"
-  | "months";
-
 type PlanForm = {
   name: string;
-
   price: string;
 
   duration_value: string;
@@ -53,7 +59,7 @@ type PlanForm = {
 
 const initialForm: PlanForm = {
   name: "",
-  price: "100",
+  price: "1000",
 
   duration_value: "1",
   duration_unit: "hours",
@@ -66,104 +72,34 @@ const initialForm: PlanForm = {
   data_limit_mb: "",
 };
 
-/**
- * Converts the UI duration into the duration_minutes
- * value expected by the NobliFi backend.
- *
- * Month is treated as 30 days.
- */
-function durationToMinutes(
-  value: number,
-  unit: DurationUnit,
-): number {
-  switch (unit) {
-    case "minutes":
-      return value;
-
-    case "hours":
-      return value * 60;
-
-    case "weeks":
-      return value * 7 * 24 * 60;
-
-    case "months":
-      return value * 30 * 24 * 60;
-
-    default:
-      return value;
-  }
-}
-
-/**
- * Human-readable duration for the plans list and
- * eventually the captive portal.
- */
 function formatDuration(
-  durationMinutes: number,
+  plan: Pick<
+    Plan,
+    | "duration_value"
+    | "duration_unit"
+    | "duration_minutes"
+  >
 ): string {
-  if (!durationMinutes || durationMinutes <= 0) {
-    return "-";
-  }
-
-  const monthMinutes =
-    30 * 24 * 60;
-
-  const weekMinutes =
-    7 * 24 * 60;
-
-  const hourMinutes = 60;
-
   if (
-    durationMinutes >= monthMinutes &&
-    durationMinutes % monthMinutes === 0
+    plan.duration_value > 0 &&
+    plan.duration_unit
   ) {
-    const months =
-      durationMinutes / monthMinutes;
+    const unit =
+      plan.duration_value === 1
+        ? plan.duration_unit.replace(
+            /s$/,
+            ""
+          )
+        : plan.duration_unit;
 
-    return `${months} ${
-      months === 1
-        ? "month"
-        : "months"
-    }`;
+    return `${plan.duration_value} ${unit}`;
   }
 
-  if (
-    durationMinutes >= weekMinutes &&
-    durationMinutes % weekMinutes === 0
-  ) {
-    const weeks =
-      durationMinutes / weekMinutes;
-
-    return `${weeks} ${
-      weeks === 1
-        ? "week"
-        : "weeks"
-    }`;
-  }
-
-  if (
-    durationMinutes >= hourMinutes &&
-    durationMinutes % hourMinutes === 0
-  ) {
-    const hours =
-      durationMinutes / hourMinutes;
-
-    return `${hours} ${
-      hours === 1
-        ? "hour"
-        : "hours"
-    }`;
-  }
-
-  return `${durationMinutes} ${
-    durationMinutes === 1
-      ? "minute"
-      : "minutes"
-  }`;
+  return `${plan.duration_minutes} min`;
 }
 
 function formatPrice(
-  price: number,
+  price: number
 ): string {
   return new Intl.NumberFormat(
     "en-UG",
@@ -171,39 +107,38 @@ function formatPrice(
       style: "currency",
       currency: "UGX",
       maximumFractionDigits: 0,
-    },
+    }
   ).format(price);
 }
 
 function formatDataCap(
-  value?: number | null,
+  value?: number | null
 ): string {
   if (!value || value <= 0) {
-    return "Unlimited";
+    return "Unlimited data";
   }
 
   if (value >= 1024) {
-    const gb = value / 1024;
+    const gb =
+      value / 1024;
 
-    return `${Number.isInteger(gb)
-      ? gb
-      : gb.toFixed(1)} GB`;
+    return `${
+      Number.isInteger(gb)
+        ? gb
+        : gb.toFixed(1)
+    } GB`;
   }
 
   return `${value} MB`;
 }
 
 function formatSpeed(
-  value?: string,
+  value?: string
 ): string {
   const speed =
-    value?.trim();
+    String(value || "").trim();
 
-  if (!speed) {
-    return "Unlimited";
-  }
-
-  return speed;
+  return speed || "Unlimited";
 }
 
 export default function PlansPage() {
@@ -224,7 +159,7 @@ export default function PlansPage() {
 
   const [form, setForm] =
     useState<PlanForm>(
-      initialForm,
+      initialForm
     );
 
   useEffect(() => {
@@ -240,11 +175,16 @@ export default function PlansPage() {
           "/api/v1/plans",
           {
             fallback: [],
-          },
+          }
         );
 
       setPlans(data);
-    } catch {
+    } catch (err) {
+      console.error(
+        "Failed to load plans:",
+        err
+      );
+
       setPlans([]);
     } finally {
       setLoading(false);
@@ -255,74 +195,91 @@ export default function PlansPage() {
     K extends keyof PlanForm,
   >(
     key: K,
-    value: PlanForm[K],
+    value: PlanForm[K]
   ) {
-    setForm((current) => ({
-      ...current,
-      [key]: value,
-    }));
+    setForm(
+      (current) => ({
+        ...current,
+        [key]: value,
+      })
+    );
   }
 
   async function submit(
     event:
-      FormEvent<HTMLFormElement>,
+      FormEvent<HTMLFormElement>
   ) {
     event.preventDefault();
 
-    setError("");
     setMessage("");
+    setError("");
 
-    const durationValue =
-      Number(
-        form.duration_value,
-      );
+    const token =
+      getToken();
 
-    if (
-      !Number.isFinite(
-        durationValue,
-      ) ||
-      durationValue <= 0
-    ) {
+    if (!token) {
       setError(
-        "Duration must be greater than zero.",
+        "Your login session is missing or has expired. Please sign in again."
       );
 
       return;
     }
 
-    const durationMinutes =
-      durationToMinutes(
-        durationValue,
-        form.duration_unit,
-      );
-
     const price =
       Number(form.price);
+
+    const durationValue =
+      Number(
+        form.duration_value
+      );
+
+    const maxDevices =
+      Number(
+        form.max_devices
+      );
+
+    if (
+      !form.name.trim()
+    ) {
+      setError(
+        "Plan name is required."
+      );
+
+      return;
+    }
 
     if (
       !Number.isFinite(price) ||
       price < 0
     ) {
       setError(
-        "Enter a valid plan price.",
+        "Enter a valid price."
       );
 
       return;
     }
 
-    const maxDevices =
-      Number(
-        form.max_devices,
+    if (
+      !Number.isInteger(
+        durationValue
+      ) ||
+      durationValue <= 0
+    ) {
+      setError(
+        "Duration must be greater than zero."
       );
+
+      return;
+    }
 
     if (
       !Number.isInteger(
-        maxDevices,
+        maxDevices
       ) ||
       maxDevices < 1
     ) {
       setError(
-        "Max devices must be at least 1.",
+        "Max devices must be at least 1."
       );
 
       return;
@@ -333,29 +290,29 @@ export default function PlansPage() {
       | null = null;
 
     if (
-      form.data_limit_mb.trim() !==
-      ""
+      form.data_limit_mb
+        .trim() !== ""
     ) {
-      const parsedDataLimit =
+      const parsed =
         Number(
-          form.data_limit_mb,
+          form.data_limit_mb
         );
 
       if (
         !Number.isFinite(
-          parsedDataLimit,
+          parsed
         ) ||
-        parsedDataLimit <= 0
+        parsed <= 0
       ) {
         setError(
-          "Data cap must be greater than zero or left blank for unlimited data.",
+          "Data cap must be greater than zero, or leave it blank for unlimited data."
         );
 
         return;
       }
 
       dataLimitMB =
-        parsedDataLimit;
+        parsed;
     }
 
     setSubmitting(true);
@@ -370,102 +327,145 @@ export default function PlansPage() {
             headers: {
               "Content-Type":
                 "application/json",
+
+              Authorization:
+                `Bearer ${token}`,
             },
 
-            credentials:
-              "include",
+            /*
+             * IMPORTANT:
+             *
+             * Do NOT add:
+             *
+             * credentials: "include"
+             *
+             * Your backend currently uses Bearer-token
+             * authentication and wildcard CORS.
+             */
 
-            body: JSON.stringify({
-              name:
-                form.name.trim(),
+            body:
+              JSON.stringify({
+                name:
+                  form.name.trim(),
 
-              price,
+                price,
 
-              duration_minutes:
-                durationMinutes,
+                duration_value:
+                  durationValue,
 
-              /**
-               * Blank speed =
-               * no speed cap.
-               */
-              upload_speed:
-                form.upload_speed.trim(),
+                duration_unit:
+                  form.duration_unit,
 
-              download_speed:
-                form.download_speed.trim(),
+                /*
+                 * Do NOT calculate duration_minutes
+                 * in the browser anymore.
+                 *
+                 * The Go backend calculates the
+                 * canonical value.
+                 */
 
-              max_devices:
-                maxDevices,
+                upload_speed:
+                  form.upload_speed.trim(),
 
-              /**
-               * null =
-               * unlimited data.
-               */
-              data_limit_mb:
-                dataLimitMB,
+                download_speed:
+                  form.download_speed.trim(),
 
-              /**
-               * New plans should
-               * immediately be available
-               * for captive portal sales.
-               */
-              is_active: true,
-            }),
-          },
+                max_devices:
+                  maxDevices,
+
+                data_limit_mb:
+                  dataLimitMB,
+
+                is_active:
+                  true,
+              }),
+          }
         );
 
+      const body =
+        await response
+          .json()
+          .catch(
+            () => null
+          );
+
+      if (
+        response.status === 401
+      ) {
+        throw new Error(
+          body?.error ||
+            body?.message ||
+            "Your login session has expired. Please sign in again."
+        );
+      }
+
+      if (
+        response.status === 403
+      ) {
+        throw new Error(
+          body?.error ||
+            body?.message ||
+            "You are not allowed to create plans."
+        );
+      }
+
       if (!response.ok) {
-        let message =
-          "Could not create plan.";
-
-        try {
-          const body =
-            (await response.json()) as {
-              error?: string;
-              message?: string;
-            };
-
-          message =
-            body.error ||
-            body.message ||
-            message;
-        } catch {
-          // Keep fallback message.
-        }
+        console.error(
+          "Create plan failed:",
+          {
+            status:
+              response.status,
+            body,
+          }
+        );
 
         throw new Error(
-          message,
+          body?.error ||
+            body?.message ||
+            `Could not create plan. Server returned ${response.status}.`
         );
       }
 
       const created =
-        (await response.json()) as Plan;
+        body as Plan;
 
       setPlans(
         (current) => [
-          ...current,
           created,
-        ],
+          ...current,
+        ]
       );
 
       setMessage(
-        `${created.name} was created successfully.`,
+        `${created.name} was created successfully.`
       );
 
-      setForm((current) => ({
-        ...current,
+      setForm(
+        (current) => ({
+          ...current,
 
-        name: "",
+          name: "",
 
-        duration_value: "1",
+          duration_value:
+            "1",
 
-        data_limit_mb: "",
-      }));
-    } catch (submitError) {
+          duration_unit:
+            "hours",
+
+          data_limit_mb:
+            "",
+        })
+      );
+    } catch (err) {
+      console.error(
+        "Plan creation error:",
+        err
+      );
+
       setError(
-        submitError instanceof Error
-          ? submitError.message
-          : "Could not create plan.",
+        err instanceof Error
+          ? err.message
+          : "Could not create plan."
       );
     } finally {
       setSubmitting(false);
@@ -480,8 +480,9 @@ export default function PlansPage() {
         </h1>
 
         <p className="mt-2 text-sm text-muted">
-          Create the packages customers
-          will use on your hotspot.
+          Create the packages
+          customers can use and
+          purchase on your hotspot.
         </p>
       </div>
 
@@ -501,27 +502,24 @@ export default function PlansPage() {
         onSubmit={submit}
         className="panel mt-6 grid gap-5 p-5 md:grid-cols-3"
       >
-        {/* NAME */}
-
         <label className="text-sm font-medium text-ink">
           Plan name
 
           <input
             className="field mt-2"
-            type="text"
             value={form.name}
-            onChange={(event) =>
+            onChange={(
+              event
+            ) =>
               updateForm(
                 "name",
-                event.target.value,
+                event.target.value
               )
             }
-            placeholder="e.g. 1 Hour WiFi"
+            placeholder="e.g. 2 Hour WiFi"
             required
           />
         </label>
-
-        {/* PRICE */}
 
         <label className="text-sm font-medium text-ink">
           Price (UGX)
@@ -532,18 +530,17 @@ export default function PlansPage() {
             min="0"
             step="1"
             value={form.price}
-            onChange={(event) =>
+            onChange={(
+              event
+            ) =>
               updateForm(
                 "price",
-                event.target.value,
+                event.target.value
               )
             }
-            placeholder="1000"
             required
           />
         </label>
-
-        {/* MAX DEVICES */}
 
         <label className="text-sm font-medium text-ink">
           Max devices
@@ -556,17 +553,17 @@ export default function PlansPage() {
             value={
               form.max_devices
             }
-            onChange={(event) =>
+            onChange={(
+              event
+            ) =>
               updateForm(
                 "max_devices",
-                event.target.value,
+                event.target.value
               )
             }
             required
           />
         </label>
-
-        {/* DURATION */}
 
         <div className="md:col-span-2">
           <label className="text-sm font-medium text-ink">
@@ -582,10 +579,12 @@ export default function PlansPage() {
               value={
                 form.duration_value
               }
-              onChange={(event) =>
+              onChange={(
+                event
+              ) =>
                 updateForm(
                   "duration_value",
-                  event.target.value,
+                  event.target.value
                 )
               }
               required
@@ -596,11 +595,13 @@ export default function PlansPage() {
               value={
                 form.duration_unit
               }
-              onChange={(event) =>
+              onChange={(
+                event
+              ) =>
                 updateForm(
                   "duration_unit",
                   event.target
-                    .value as DurationUnit,
+                    .value as DurationUnit
                 )
               }
             >
@@ -621,25 +622,7 @@ export default function PlansPage() {
               </option>
             </select>
           </div>
-
-          <p className="mt-2 text-xs text-muted">
-            This plan will last{" "}
-            <span className="font-medium text-ink">
-              {formatDuration(
-                durationToMinutes(
-                  Number(
-                    form.duration_value ||
-                      0,
-                  ),
-                  form.duration_unit,
-                ),
-              )}
-            </span>
-            .
-          </p>
         </div>
-
-        {/* DATA CAP */}
 
         <label className="text-sm font-medium text-ink">
           Data cap
@@ -652,10 +635,12 @@ export default function PlansPage() {
             value={
               form.data_limit_mb
             }
-            onChange={(event) =>
+            onChange={(
+              event
+            ) =>
               updateForm(
                 "data_limit_mb",
-                event.target.value,
+                event.target.value
               )
             }
             placeholder="Unlimited"
@@ -667,21 +652,20 @@ export default function PlansPage() {
           </span>
         </label>
 
-        {/* UPLOAD SPEED */}
-
         <label className="text-sm font-medium text-ink">
           Upload speed
 
           <input
             className="field mt-2"
-            type="text"
             value={
               form.upload_speed
             }
-            onChange={(event) =>
+            onChange={(
+              event
+            ) =>
               updateForm(
                 "upload_speed",
-                event.target.value,
+                event.target.value
               )
             }
             placeholder="e.g. 5M"
@@ -693,21 +677,20 @@ export default function PlansPage() {
           </span>
         </label>
 
-        {/* DOWNLOAD SPEED */}
-
         <label className="text-sm font-medium text-ink">
           Download speed
 
           <input
             className="field mt-2"
-            type="text"
             value={
               form.download_speed
             }
-            onChange={(event) =>
+            onChange={(
+              event
+            ) =>
               updateForm(
                 "download_speed",
-                event.target.value,
+                event.target.value
               )
             }
             placeholder="e.g. 10M"
@@ -718,68 +701,6 @@ export default function PlansPage() {
             download speed cap.
           </span>
         </label>
-
-        {/* PREVIEW */}
-
-        <div className="rounded-lg border border-line bg-soft/40 p-4 md:col-span-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">
-            Package preview
-          </p>
-
-          <div className="mt-3 flex flex-wrap gap-x-8 gap-y-2 text-sm">
-            <span className="font-semibold text-ink">
-              {form.name.trim() ||
-                "Plan name"}
-            </span>
-
-            <span className="text-muted">
-              {formatPrice(
-                Number(
-                  form.price ||
-                    0,
-                ),
-              )}
-            </span>
-
-            <span className="text-muted">
-              {formatDuration(
-                durationToMinutes(
-                  Number(
-                    form.duration_value ||
-                      0,
-                  ),
-                  form.duration_unit,
-                ),
-              )}
-            </span>
-
-            <span className="text-muted">
-              ↑{" "}
-              {formatSpeed(
-                form.upload_speed,
-              )}
-            </span>
-
-            <span className="text-muted">
-              ↓{" "}
-              {formatSpeed(
-                form.download_speed,
-              )}
-            </span>
-
-            <span className="text-muted">
-              {form.data_limit_mb
-                ? formatDataCap(
-                    Number(
-                      form.data_limit_mb,
-                    ),
-                  )
-                : "Unlimited data"}
-            </span>
-          </div>
-        </div>
-
-        {/* CREATE */}
 
         <div className="md:col-span-3">
           <button
@@ -796,14 +717,13 @@ export default function PlansPage() {
         </div>
       </form>
 
-      {/* EXISTING PLANS */}
-
       <div className="panel mt-6 overflow-hidden">
         {loading ? (
           <div className="p-6 text-sm text-muted">
             Loading plans...
           </div>
-        ) : plans.length === 0 ? (
+        ) : plans.length ===
+          0 ? (
           <div className="p-6 text-sm text-muted">
             No plans created yet.
           </div>
@@ -817,43 +737,41 @@ export default function PlansPage() {
                   }
                   className="grid gap-4 p-4 text-sm md:grid-cols-7 md:items-center"
                 >
-                  <div>
-                    <span className="font-semibold text-ink">
-                      {
-                        plan.name
-                      }
-                    </span>
-                  </div>
+                  <span className="font-semibold text-ink">
+                    {
+                      plan.name
+                    }
+                  </span>
 
                   <span className="text-muted">
                     {formatPrice(
-                      plan.price,
+                      plan.price
                     )}
                   </span>
 
                   <span className="text-muted">
                     {formatDuration(
-                      plan.duration_minutes,
+                      plan
                     )}
                   </span>
 
                   <span className="text-muted">
                     Up{" "}
                     {formatSpeed(
-                      plan.upload_speed,
+                      plan.upload_speed
                     )}
                   </span>
 
                   <span className="text-muted">
                     Down{" "}
                     {formatSpeed(
-                      plan.download_speed,
+                      plan.download_speed
                     )}
                   </span>
 
                   <span className="text-muted">
                     {formatDataCap(
-                      plan.data_limit_mb,
+                      plan.data_limit_mb
                     )}
                   </span>
 
@@ -867,7 +785,7 @@ export default function PlansPage() {
                       : "devices"}
                   </span>
                 </div>
-              ),
+              )
             )}
           </div>
         )}
