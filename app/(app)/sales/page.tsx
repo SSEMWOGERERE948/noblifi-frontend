@@ -95,28 +95,28 @@ export default function SalesPage() {
       apiFetch<Sale[]>("/api/v1/sales?limit=25", { fallback: [] })
     ])
       .then(([summaryData, hotspotData, packageData, trendData, transactionData, salesSummaryData, salesData]) => {
-        setSummary(summaryData);
-        setHotspots(hotspotData);
-        setPackages(packageData);
-        setTrend(trendData);
-        setTransactions(transactionData);
-        setSalesSummary(salesSummaryData);
-        setSales(salesData);
+        setSummary(normalizeRevenueSummary(summaryData));
+        setHotspots(asArray(hotspotData));
+        setPackages(asArray(packageData));
+        setTrend(asArray(trendData));
+        setTransactions(asArray(transactionData));
+        setSalesSummary(normalizeSalesSummary(salesSummaryData));
+        setSales(asArray(salesData));
         setError("");
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Could not load revenue."))
       .finally(() => setLoading(false));
   }, [range, routerID, provider, status]);
 
-  const maxTrend = Math.max(...trend.map((point) => point.revenue), 1);
-  const providers = useMemo(() => Array.from(new Set(transactions.map((item) => item.provider).filter(Boolean))), [transactions]);
+  const maxTrend = Math.max(...trend.map((point) => safeNumber(point.revenue)), 1);
+  const providers = useMemo(() => Array.from(new Set(transactions.map((item) => safeString(item.provider)).filter(Boolean))), [transactions]);
   const cards = [
     ["Total Online Revenue", money(summary.total_revenue, summary.currency), "Gross online revenue from paid HotSpot purchases"],
     ["Revenue Today", money(summary.today_revenue, summary.currency), "Confirmed paid today"],
     ["Revenue This Week", money(summary.week_revenue, summary.currency), "Confirmed paid this week"],
     ["Revenue This Month", money(summary.month_revenue, summary.currency), "Confirmed paid this month"],
-    ["Successful Payments", String(summary.successful_payments), "Paid transactions only"],
-    ["Pending Payments", String(summary.pending_payments), `Pending value ${money(summary.pending_value, summary.currency)}`]
+    ["Successful Payments", String(safeNumber(summary.successful_payments)), "Paid transactions only"],
+    ["Pending Payments", String(safeNumber(summary.pending_payments)), `Pending value ${money(summary.pending_value, summary.currency)}`]
   ];
 
   return (
@@ -140,8 +140,8 @@ export default function SalesPage() {
         </select>
         <select className="field" value={routerID} onChange={(event) => setRouterID(event.target.value)}>
           <option value="">All HotSpots</option>
-          {hotspots.map((hotspot) => (
-            <option key={hotspot.id} value={hotspot.id}>{hotspot.name}</option>
+          {hotspots.map((hotspot, index) => (
+            <option key={safeString(hotspot.id) || `hotspot-${index}`} value={safeString(hotspot.id)}>{safeString(hotspot.name) || "Unnamed HotSpot"}</option>
           ))}
         </select>
         <select className="field" value={provider} onChange={(event) => setProvider(event.target.value)}>
@@ -176,9 +176,9 @@ export default function SalesPage() {
           <div className="mt-5 flex h-64 items-end gap-3 border-b border-line pb-5">
             {trend.length ? trend.map((point) => (
               <div key={point.label} className="flex h-full min-w-8 flex-1 flex-col justify-end">
-                <span className="mb-2 text-center text-[11px] text-muted">{shortMoney(point.revenue)}</span>
-                <div className="min-h-2 rounded-t-md bg-accent" style={{ height: `${Math.max(4, (point.revenue / maxTrend) * 88)}%` }} />
-                <span className="mt-2 truncate text-center text-[11px] text-muted">{point.label}</span>
+                <span className="mb-2 text-center text-[11px] text-muted">{shortMoney(safeNumber(point.revenue))}</span>
+                <div className="min-h-2 rounded-t-md bg-accent" style={{ height: `${Math.max(4, (safeNumber(point.revenue) / maxTrend) * 88)}%` }} />
+                <span className="mt-2 truncate text-center text-[11px] text-muted">{safeString(point.label) || "-"}</span>
               </div>
             )) : <p className="self-center text-sm text-muted">No paid sales in this range.</p>}
           </div>
@@ -211,12 +211,12 @@ export default function SalesPage() {
           <DataTable
             columns={["Customer", "Source", "Gross", "NobliFi Fee", "Merchant Net", "Status", "Date"]}
             rows={sales.map((item) => ({
-              Customer: item.customer_name || "-",
-              Source: titleCase(item.source.replace(/_/g, " ")),
+              Customer: safeString(item.customer_name) || "-",
+              Source: titleCase(safeString(item.source).replace(/_/g, " ")),
               Gross: money(item.gross_amount, item.currency),
               "NobliFi Fee": money(item.platform_fee_amount, item.currency),
               "Merchant Net": money(item.merchant_net_amount, item.currency),
-              Status: <StatusBadge label={titleCase(item.payment_status)} />,
+              Status: <StatusBadge label={titleCase(safeString(item.payment_status))} />,
               Date: formatDate(item.sold_at)
             }))}
           />
@@ -233,15 +233,15 @@ export default function SalesPage() {
           <DataTable
             columns={["Customer", "Phone", "HotSpot", "Package", "Amount", "Provider", "Payment Status", "Voucher", "Device", "Date"]}
             rows={transactions.map((item) => ({
-              Customer: item.customer || "-",
-              Phone: item.phone || "-",
-              HotSpot: item.hotspot,
-              Package: item.package,
+              Customer: safeString(item.customer) || "-",
+              Phone: safeString(item.phone) || "-",
+              HotSpot: safeString(item.hotspot) || "-",
+              Package: safeString(item.package) || "-",
               Amount: money(item.amount, item.currency),
-              Provider: titleCase(item.provider),
-              "Payment Status": <StatusBadge label={titleCase(item.payment_status)} />,
-              Voucher: item.voucher || "-",
-              Device: item.device || "-",
+              Provider: titleCase(safeString(item.provider)),
+              "Payment Status": <StatusBadge label={titleCase(safeString(item.payment_status))} />,
+              Voucher: safeString(item.voucher) || "-",
+              Device: safeString(item.device) || "-",
               Date: formatDate(item.paid_at ?? item.created_at)
             }))}
           />
@@ -267,10 +267,10 @@ function Breakdown({ title, rows, onSelect }: { title: string; rows: BreakdownRo
     <div className="panel p-5">
       <h2 className="text-lg font-semibold text-ink">{title}</h2>
       <div className="mt-4 divide-y divide-line">
-        {rows.length ? rows.map((row) => (
-          <button key={row.id} type="button" className="grid w-full grid-cols-[1fr_auto_auto] items-center gap-3 py-3 text-left text-sm" onClick={() => onSelect?.(row.id)}>
-            <span className="font-medium text-ink">{row.name}</span>
-            <span className="text-muted">{row.sales} sales</span>
+        {rows.length ? rows.map((row, index) => (
+          <button key={safeString(row.id) || `${title}-${index}`} type="button" className="grid w-full grid-cols-[1fr_auto_auto] items-center gap-3 py-3 text-left text-sm" onClick={() => onSelect?.(safeString(row.id))}>
+            <span className="font-medium text-ink">{safeString(row.name) || "-"}</span>
+            <span className="text-muted">{safeNumber(row.sales)} sales</span>
             <span className="font-semibold text-accent">{money(row.revenue, row.currency)}</span>
           </button>
         )) : <p className="py-3 text-sm text-muted">No paid sales in this range.</p>}
@@ -280,7 +280,7 @@ function Breakdown({ title, rows, onSelect }: { title: string; rows: BreakdownRo
 }
 
 function money(value: number, currency = "UGX") {
-  return `${currency} ${new Intl.NumberFormat("en-UG").format(value || 0)}`;
+  return `${safeString(currency) || "UGX"} ${new Intl.NumberFormat("en-UG").format(safeNumber(value))}`;
 }
 
 function shortMoney(value: number) {
@@ -290,9 +290,53 @@ function shortMoney(value: number) {
 }
 
 function titleCase(value: string) {
-  return value ? value.charAt(0).toUpperCase() + value.slice(1).toLowerCase() : "-";
+  const text = safeString(value);
+  return text ? text.charAt(0).toUpperCase() + text.slice(1).toLowerCase() : "-";
 }
 
 function formatDate(value: string) {
-  return new Date(value).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  const text = safeString(value);
+  if (!text) return "-";
+  const date = new Date(text);
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
+function asArray<T>(value: T[] | unknown): T[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function safeString(value: unknown) {
+  return typeof value === "string" ? value : value == null ? "" : String(value);
+}
+
+function safeNumber(value: unknown) {
+  const number = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function normalizeRevenueSummary(value: RevenueSummary | unknown): RevenueSummary {
+  const input = value && typeof value === "object" ? value as Partial<RevenueSummary> : {};
+  return {
+    currency: safeString(input.currency) || "UGX",
+    total_revenue: safeNumber(input.total_revenue),
+    today_revenue: safeNumber(input.today_revenue),
+    week_revenue: safeNumber(input.week_revenue),
+    month_revenue: safeNumber(input.month_revenue),
+    successful_payments: safeNumber(input.successful_payments),
+    pending_payments: safeNumber(input.pending_payments),
+    failed_payments: safeNumber(input.failed_payments),
+    pending_value: safeNumber(input.pending_value)
+  };
+}
+
+function normalizeSalesSummary(value: SalesSummary | unknown): SalesSummary {
+  const input = value && typeof value === "object" ? value as Partial<SalesSummary> : {};
+  return {
+    currency: safeString(input.currency) || "UGX",
+    gross_sales: safeNumber(input.gross_sales),
+    platform_fees: safeNumber(input.platform_fees),
+    merchant_net: safeNumber(input.merchant_net),
+    physical_sales: safeNumber(input.physical_sales)
+  };
 }
