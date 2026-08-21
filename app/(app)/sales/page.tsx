@@ -75,6 +75,7 @@ export default function SalesPage() {
   });
   const [provider, setProvider] = useState("");
   const [status, setStatus] = useState("");
+  const [salesSearch, setSalesSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -92,9 +93,9 @@ export default function SalesPage() {
       apiFetch<BreakdownRow[]>(`/api/v1/revenue/by-hotspot${query}`, { fallback: [] }),
       apiFetch<BreakdownRow[]>(`/api/v1/revenue/by-package${query}`, { fallback: [] }),
       apiFetch<TrendPoint[]>(`/api/v1/revenue/trend${query}`, { fallback: [] }),
-      apiFetch<Transaction[]>(`/api/v1/revenue/transactions${query}`, { fallback: [] }),
+      apiFetch<Transaction[]>(`/api/v1/revenue/transactions${query ? `${query}&limit=100` : "?limit=100"}`, { fallback: [] }),
       apiFetch<SalesSummary>("/api/v1/sales/summary", { fallback: { currency: "UGX", gross_sales: 0, platform_fees: 0, merchant_net: 0, physical_sales: 0 } }),
-      apiFetch<Sale[]>("/api/v1/sales?limit=25", { fallback: [] })
+      apiFetch<Sale[]>("/api/v1/sales?limit=100", { fallback: [] })
     ])
       .then(([summaryData, hotspotData, packageData, trendData, transactionData, salesSummaryData, salesData]) => {
         setSummary(normalizeRevenueSummary(summaryData));
@@ -112,6 +113,24 @@ export default function SalesPage() {
 
   const maxTrend = Math.max(...trend.map((point) => safeNumber(point.revenue)), 1);
   const providers = useMemo(() => Array.from(new Set(transactions.map((item) => safeString(item.provider)).filter(Boolean))), [transactions]);
+  const filteredSales = useMemo(
+    () =>
+      sales.filter((item) =>
+        saleSearchText(item).includes(
+          salesSearch.trim().toLowerCase()
+        )
+      ),
+    [sales, salesSearch]
+  );
+  const filteredTransactions = useMemo(
+    () =>
+      transactions.filter((item) =>
+        transactionSearchText(item).includes(
+          salesSearch.trim().toLowerCase()
+        )
+      ),
+    [transactions, salesSearch]
+  );
   const cards = [
     ["Total Online Revenue", money(summary.total_revenue, summary.currency), "Gross online revenue from paid HotSpot purchases"],
     ["Revenue Today", money(summary.today_revenue, summary.currency), "Confirmed paid today"],
@@ -158,6 +177,17 @@ export default function SalesPage() {
           <option value="pending">Pending</option>
           <option value="failed">Failed</option>
         </select>
+      </section>
+
+      <section className="mb-5">
+        <input
+          className="field"
+          value={salesSearch}
+          onChange={(event) =>
+            setSalesSearch(event.target.value)
+          }
+          placeholder="Search sales by transaction ID, customer, phone, package, voucher..."
+        />
       </section>
 
       {error ? <div className="panel mb-4 p-4 text-sm text-red-400">{error}</div> : null}
@@ -209,10 +239,10 @@ export default function SalesPage() {
 
       <section className="mt-5">
         <h2 className="mb-3 text-lg font-semibold text-ink">Sales Ledger</h2>
-        {sales.length ? (
+        {filteredSales.length ? (
           <DataTable
             columns={["Customer", "Transaction ID", "Source", "Gross", "NobliFi Fee", "Merchant Net", "Status", "Date"]}
-            rows={sales.map((item) => ({
+            rows={filteredSales.map((item) => ({
               Customer: safeString(item.customer_name) || "-",
               "Transaction ID": safeString(item.payment_reference) || "-",
               Source: titleCase(safeString(item.source).replace(/_/g, " ")),
@@ -232,10 +262,10 @@ export default function SalesPage() {
         <h2 className="mb-3 text-lg font-semibold text-ink">Recent Online Sales</h2>
         {loading && !transactions.length ? (
           <EmptyState title="Loading sales" description="Revenue records are being loaded." />
-        ) : transactions.length ? (
+        ) : filteredTransactions.length ? (
           <DataTable
             columns={["Transaction ID", "Customer", "Phone", "HotSpot", "Package", "Amount", "Provider", "Payment Status", "Voucher", "Device", "Date"]}
-            rows={transactions.map((item) => ({
+            rows={filteredTransactions.map((item) => ({
               "Transaction ID": safeString(item.transaction_id) || "-",
               Customer: safeString(item.customer) || "-",
               Phone: safeString(item.phone) || "-",
@@ -308,6 +338,39 @@ function formatDate(value: string) {
 
 function asArray<T>(value: T[] | unknown): T[] {
   return Array.isArray(value) ? value : [];
+}
+
+function saleSearchText(item: Sale) {
+  return [
+    item.customer_name,
+    item.phone,
+    item.payment_reference,
+    item.source,
+    item.payment_status,
+    item.currency,
+    item.gross_amount
+  ]
+    .map(safeString)
+    .join(" ")
+    .toLowerCase();
+}
+
+function transactionSearchText(item: Transaction) {
+  return [
+    item.transaction_id,
+    item.customer,
+    item.phone,
+    item.hotspot,
+    item.package,
+    item.provider,
+    item.payment_status,
+    item.voucher,
+    item.device,
+    item.amount
+  ]
+    .map(safeString)
+    .join(" ")
+    .toLowerCase();
 }
 
 function safeString(value: unknown) {

@@ -110,6 +110,7 @@ const codeTypes: {
 ];
 
 const codeLengths = [4, 5, 6, 7, 8, 9] as const;
+const vouchersPerPage = 100;
 
 function formatDuration(minutes?: number) {
   if (!minutes || minutes <= 0) {
@@ -513,6 +514,16 @@ export default function VouchersPage() {
 
   const [downloadingPdf, setDownloadingPdf] =
     useState(false);
+  const [voucherSearch, setVoucherSearch] =
+    useState("");
+  const [voucherStatusFilter, setVoucherStatusFilter] =
+    useState("");
+  const [voucherPlanFilter, setVoucherPlanFilter] =
+    useState("");
+  const [voucherChannelFilter, setVoucherChannelFilter] =
+    useState("");
+  const [voucherPage, setVoucherPage] =
+    useState(1);
 
   useEffect(() => {
     // Randomize the visual voucher samples after the component
@@ -581,11 +592,95 @@ export default function VouchersPage() {
     [vouchers, selectedIds]
   );
 
+  const filteredVouchers = useMemo(() => {
+    const search = voucherSearch.trim().toLowerCase();
+
+    return vouchers.filter((voucher) => {
+      if (
+        voucherStatusFilter &&
+        (voucher.status ?? "").toLowerCase() !==
+          voucherStatusFilter
+      ) {
+        return false;
+      }
+
+      if (
+        voucherChannelFilter &&
+        (voucher.channel ?? "physical").toLowerCase() !==
+          voucherChannelFilter
+      ) {
+        return false;
+      }
+
+      if (
+        voucherPlanFilter &&
+        voucher.plan_id !== voucherPlanFilter
+      ) {
+        return false;
+      }
+
+      if (!search) {
+        return true;
+      }
+
+      const haystack = [
+        voucher.code,
+        voucher.plan_name,
+        plansById.get(voucher.plan_id)?.name,
+        voucher.channel,
+        voucher.status,
+        voucher.payer,
+        voucher.payer_name,
+        voucher.use_case,
+        voucher.provider_reference,
+        voucher.merchant_reference,
+        voucher.batch_id
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return haystack.includes(search);
+    });
+  }, [
+    plansById,
+    voucherChannelFilter,
+    voucherPlanFilter,
+    voucherSearch,
+    voucherStatusFilter,
+    vouchers
+  ]);
+
+  const voucherPageCount = Math.max(
+    1,
+    Math.ceil(filteredVouchers.length / vouchersPerPage)
+  );
+
+  const pagedVouchers = filteredVouchers.slice(
+    (voucherPage - 1) * vouchersPerPage,
+    voucherPage * vouchersPerPage
+  );
+
   const allSelected =
-    vouchers.length > 0 &&
-    vouchers.every((voucher) =>
+    pagedVouchers.length > 0 &&
+    pagedVouchers.every((voucher) =>
       selectedIds.has(voucher.id)
     );
+
+  useEffect(() => {
+    setVoucherPage(1);
+  }, [
+    voucherChannelFilter,
+    voucherPlanFilter,
+    voucherSearch,
+    voucherStatusFilter
+  ]);
+
+  useEffect(() => {
+    if (voucherPage > voucherPageCount) {
+      setVoucherPage(voucherPageCount);
+    }
+  }, [voucherPage, voucherPageCount]);
 
   async function submit(
     event: FormEvent<HTMLFormElement>
@@ -654,12 +749,21 @@ export default function VouchersPage() {
 
   function toggleAll() {
     if (allSelected) {
-      setSelectedIds(new Set());
+      setSelectedIds((current) => {
+        const next = new Set(current);
+        pagedVouchers.forEach((voucher) =>
+          next.delete(voucher.id)
+        );
+        return next;
+      });
       return;
     }
 
     setSelectedIds(
-      new Set(vouchers.map((voucher) => voucher.id))
+      new Set([
+        ...selectedIds,
+        ...pagedVouchers.map((voucher) => voucher.id)
+      ])
     );
   }
 
@@ -989,7 +1093,7 @@ export default function VouchersPage() {
             </p>
           </div>
 
-          {vouchers.length > 0 ? (
+          {filteredVouchers.length > 0 ? (
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
@@ -1016,13 +1120,66 @@ export default function VouchersPage() {
           ) : null}
         </div>
 
+        <div className="mb-4 grid gap-3 md:grid-cols-[minmax(0,1.4fr)_repeat(3,minmax(0,1fr))]">
+          <input
+            className="field"
+            value={voucherSearch}
+            onChange={(event) =>
+              setVoucherSearch(event.target.value)
+            }
+            placeholder="Search voucher, payer, name, batch..."
+          />
+
+          <select
+            className="field"
+            value={voucherStatusFilter}
+            onChange={(event) =>
+              setVoucherStatusFilter(event.target.value)
+            }
+          >
+            <option value="">All statuses</option>
+            <option value="unused">Not used</option>
+            <option value="active">Active</option>
+            <option value="used">Used</option>
+            <option value="expired">Expired</option>
+            <option value="exhausted">Exhausted</option>
+          </select>
+
+          <select
+            className="field"
+            value={voucherChannelFilter}
+            onChange={(event) =>
+              setVoucherChannelFilter(event.target.value)
+            }
+          >
+            <option value="">All tokens</option>
+            <option value="online">Online tokens</option>
+            <option value="physical">Physical vouchers</option>
+          </select>
+
+          <select
+            className="field"
+            value={voucherPlanFilter}
+            onChange={(event) =>
+              setVoucherPlanFilter(event.target.value)
+            }
+          >
+            <option value="">All packages</option>
+            {plans.map((plan) => (
+              <option key={plan.id} value={plan.id}>
+                {plan.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
         {loading ? (
           <p className="text-sm text-muted">
             Loading vouchers...
           </p>
         ) : null}
 
-        {!loading && vouchers.length ? (
+        {!loading && filteredVouchers.length ? (
           <DataTable
             columns={[
               "Select",
@@ -1037,7 +1194,7 @@ export default function VouchersPage() {
               "Use Case",
               "Created On"
             ]}
-            rows={vouchers.map((voucher) => {
+            rows={pagedVouchers.map((voucher) => {
               const plan = plansById.get(
                 voucher.plan_id
               );
@@ -1086,6 +1243,60 @@ export default function VouchersPage() {
             title="No vouchers yet"
             description="Generate a voucher batch after creating a plan."
           />
+        ) : null}
+
+        {!loading && vouchers.length > 0 && !filteredVouchers.length ? (
+          <EmptyState
+            title="No matching vouchers"
+            description="Adjust search, status, token type, or package filters."
+          />
+        ) : null}
+
+        {!loading && filteredVouchers.length > 0 ? (
+          <div className="mt-4 flex flex-col gap-3 text-sm text-muted sm:flex-row sm:items-center sm:justify-between">
+            <span>
+              Showing{" "}
+              {(voucherPage - 1) * vouchersPerPage + 1}
+              -
+              {Math.min(
+                voucherPage * vouchersPerPage,
+                filteredVouchers.length
+              )}{" "}
+              of {filteredVouchers.length} vouchers
+            </span>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={voucherPage <= 1}
+                onClick={() =>
+                  setVoucherPage((current) =>
+                    Math.max(1, current - 1)
+                  )
+                }
+              >
+                Previous
+              </button>
+
+              <span className="rounded-md border border-line px-3 py-2 text-ink">
+                Page {voucherPage} of {voucherPageCount}
+              </span>
+
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={voucherPage >= voucherPageCount}
+                onClick={() =>
+                  setVoucherPage((current) =>
+                    Math.min(voucherPageCount, current + 1)
+                  )
+                }
+              >
+                Next
+              </button>
+            </div>
+          </div>
         ) : null}
       </section>
 
