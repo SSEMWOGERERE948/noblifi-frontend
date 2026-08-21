@@ -17,6 +17,7 @@ type RouterDetail = {
   routeros_version?: string;
   status: string;
   health_status?: string;
+  health_reason?: string;
   uptime?: string;
   cpu_load?: string;
   free_memory?: string;
@@ -28,6 +29,9 @@ type RouterDetail = {
   wire_guard_peer_status?: string;
   wire_guard_last_handshake_at?: string;
   wire_guard_last_error?: string;
+  remote_access_status?: string;
+  remote_winbox_port?: number;
+  remote_access_expires_at?: string;
   claim_token: string;
   config_status?: string;
   interfaces?: Array<{ name: string; type?: string; mac_address?: string; running: boolean; disabled: boolean }>;
@@ -47,8 +51,12 @@ export default function RouterDetailPage({ params }: { params: Promise<{ id: str
   const [router, setRouter] = useState<RouterDetail | null>(null);
   const [revenue, setRevenue] = useState<RouterRevenue | null>(null);
   const [error, setError] = useState("");
+  const [winboxMessage, setWinboxMessage] = useState("");
+  const [deleteChallenge, setDeleteChallenge] = useState<{ challenge_id: string; expected_confirmation: string; expires_at: string } | null>(null);
+  const [confirmationOne, setConfirmationOne] = useState("");
+  const [confirmationTwo, setConfirmationTwo] = useState("");
 
-  useEffect(() => {
+  function load() {
     Promise.all([
       apiFetch<RouterDetail>(`/api/v1/routers/${id}`),
       apiFetch<RouterRevenue>(`/api/v1/routers/${id}/revenue/summary`, {
@@ -58,8 +66,21 @@ export default function RouterDetailPage({ params }: { params: Promise<{ id: str
       .then(([routerData, revenueData]) => {
         setRouter(routerData);
         setRevenue(revenueData);
+        setError("");
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Could not load router."));
+  }
+
+  useEffect(() => {
+    load();
+    const timer = window.setInterval(load, 15000);
+    window.addEventListener("focus", load);
+    window.addEventListener("online", load);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", load);
+      window.removeEventListener("online", load);
+    };
   }, [id]);
 
   if (error) {
@@ -72,6 +93,49 @@ export default function RouterDetailPage({ params }: { params: Promise<{ id: str
 
   const interfaces = router.interfaces ?? [];
   const isLinked = Boolean(router.serial_number || router.model || router.routeros_version || interfaces.length || router.status === "online" || router.status === "linked" || router.status === "provisioned");
+  const canEnableWinbox = ["online", "recovering", "degraded"].includes((router.health_status ?? "").toLowerCase());
+  const winboxHost = typeof window !== "undefined" ? window.location.hostname : "access.noblifi.com";
+  const winboxAddress = router.remote_winbox_port ? `${winboxHost}:${router.remote_winbox_port}` : "";
+
+  async function enableWinbox(duration: number) {
+    setWinboxMessage("");
+    const response = await apiFetch<{ host: string; port: number; expires_at: string; status: string }>(`/api/v1/routers/${id}/remote-access/winbox`, {
+      method: "POST",
+      body: JSON.stringify({ duration_minutes: duration })
+    });
+    setWinboxMessage(`WinBox access ${response.status}. Connect to ${response.host}:${response.port}.`);
+    load();
+  }
+
+  async function disableWinbox() {
+    await apiFetch<void>(`/api/v1/routers/${id}/remote-access`, { method: "DELETE" });
+    setWinboxMessage("WinBox remote access disabled.");
+    load();
+  }
+
+  async function requestDeleteChallenge() {
+    const response = await apiFetch<{ challenge_id: string; expected_confirmation: string; expires_at: string }>(`/api/v1/routers/${id}/delete-challenge`, {
+      method: "POST"
+    });
+    setDeleteChallenge(response);
+    setConfirmationOne("");
+    setConfirmationTwo("");
+  }
+
+  async function deleteRouter() {
+    if (!deleteChallenge) {
+      return;
+    }
+    await apiFetch<void>(`/api/v1/routers/${id}`, {
+      method: "DELETE",
+      body: JSON.stringify({
+        challenge_id: deleteChallenge.challenge_id,
+        confirmation_one: confirmationOne,
+        confirmation_two: confirmationTwo
+      })
+    });
+    window.location.href = "/routers";
+  }
 
   return (
     <>
@@ -122,6 +186,7 @@ export default function RouterDetailPage({ params }: { params: Promise<{ id: str
           <dl className="mt-4 grid gap-3 text-sm">
             {[
               ["Health", titleCase(router.health_status ?? router.status)],
+              ["Reason", label(router.health_reason ?? "-")],
               ["CPU Load", formatCpu(router.cpu_load)],
               ["Uptime", formatUptime(router.uptime)],
               ["Active HotSpot Users", String(router.active_hotspot_users ?? "--")],
@@ -138,6 +203,37 @@ export default function RouterDetailPage({ params }: { params: Promise<{ id: str
               </div>
             ))}
           </dl>
+        </div>
+        <div className="panel p-5">
+          <h2 className="text-lg font-semibold text-ink">WinBox Remote Access</h2>
+          {winboxMessage ? <p className="mt-3 rounded-md border border-line bg-soft p-3 text-sm text-accent">{winboxMessage}</p> : null}
+          <dl className="mt-4 grid gap-3 text-sm">
+            {[
+              ["Status", titleCase(router.remote_access_status ?? "disabled")],
+              ["Connect To", winboxAddress || "-"],
+              ["Expires", formatDateTime(router.remote_access_expires_at)]
+            ].map(([labelText, value]) => (
+              <div key={labelText} className="flex justify-between gap-4 border-b border-line pb-2">
+                <dt className="text-muted">{labelText}</dt>
+                <dd className="font-medium text-ink">{value}</dd>
+              </div>
+            ))}
+          </dl>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {[15, 30, 60].map((duration) => (
+              <button key={duration} className="btn-secondary" type="button" disabled={!canEnableWinbox} onClick={() => enableWinbox(duration)}>
+                Enable {duration}m
+              </button>
+            ))}
+            <button className="btn-secondary" type="button" onClick={disableWinbox}>
+              Disable Access
+            </button>
+            {winboxAddress ? (
+              <button className="btn" type="button" onClick={() => navigator.clipboard.writeText(winboxAddress)}>
+                Copy Address
+              </button>
+            ) : null}
+          </div>
         </div>
         <div className="panel p-5">
           <div className="flex items-center justify-between gap-3">
@@ -186,6 +282,24 @@ export default function RouterDetailPage({ params }: { params: Promise<{ id: str
           </div>
         </div>
       </section>
+      <section className="panel mt-6 p-5">
+        <h2 className="text-lg font-semibold text-red-300">Danger Zone</h2>
+        <p className="mt-2 text-sm text-muted">Deleting a router disables runtime management and removes WireGuard access, but preserves sales, vouchers, wallet, commission, and accounting history.</p>
+        {!deleteChallenge ? (
+          <button className="btn-secondary mt-4" type="button" onClick={requestDeleteChallenge}>
+            Delete Router
+          </button>
+        ) : (
+          <div className="mt-4 grid gap-3">
+            <pre className="overflow-x-auto rounded-md border border-line bg-soft p-3 text-sm text-ink">{deleteChallenge.expected_confirmation}</pre>
+            <textarea className="field min-h-24" value={confirmationOne} onChange={(event) => setConfirmationOne(event.target.value)} placeholder="Paste confirmation once" />
+            <textarea className="field min-h-24" value={confirmationTwo} onChange={(event) => setConfirmationTwo(event.target.value)} placeholder="Paste confirmation again" />
+            <button className="btn" type="button" onClick={deleteRouter}>
+              Confirm Delete Router
+            </button>
+          </div>
+        )}
+      </section>
       <section className="mt-6">
         <h2 className="mb-3 text-lg font-semibold text-ink">Registration Script</h2>
         <BootstrapScript token={router.claim_token} />
@@ -196,6 +310,10 @@ export default function RouterDetailPage({ params }: { params: Promise<{ id: str
 
 function titleCase(value: string) {
   return value ? value.charAt(0).toUpperCase() + value.slice(1).toLowerCase() : "Pending";
+}
+
+function label(value: string) {
+  return value.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 function formatCpu(value?: string) {

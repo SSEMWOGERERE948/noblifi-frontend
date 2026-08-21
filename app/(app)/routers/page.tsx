@@ -60,10 +60,15 @@ export default function RoutersPage() {
     };
 
     loadRouters(true);
-    const timer = window.setInterval(() => loadRouters(false), 30000);
+    const refresh = () => loadRouters(false);
+    const timer = window.setInterval(refresh, 15000);
+    window.addEventListener("focus", refresh);
+    window.addEventListener("online", refresh);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("online", refresh);
     };
   }, []);
 
