@@ -24,7 +24,7 @@ export function OperationsTitle({
     <header className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
       <div>
         <p className="text-xs font-bold uppercase tracking-wider text-accent">NobliFi Operations</p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-normal text-ink">{title}</h1>
+        <h1 className="mt-2 text-2xl font-semibold tracking-normal text-ink sm:text-3xl">{title}</h1>
         <p className="mt-2 max-w-3xl text-sm text-muted">{description}</p>
       </div>
       <div className="flex flex-wrap items-center gap-3">
@@ -137,24 +137,26 @@ export function RecentPanel({
 export function DataTable({ columns, rows }: { columns: string[]; rows: Row[] }) {
   return (
     <div className="panel overflow-hidden">
-      <table className="w-full min-w-[760px] text-left text-sm">
-        <thead className="border-b border-line bg-soft/60 text-xs uppercase text-muted">
-          <tr>
-            {columns.map((column) => (
-              <th key={column} className="px-4 py-3">{column}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-line">
-          {rows.map((row, index) => (
-            <tr key={index} className="hover:bg-soft/60">
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[720px] text-left text-sm">
+          <thead className="border-b border-line bg-soft/60 text-xs uppercase text-muted">
+            <tr>
               {columns.map((column) => (
-                <td key={column} className="px-4 py-3 text-muted">{row[column]}</td>
+                <th key={column} className="px-4 py-3">{column}</th>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-line">
+            {rows.map((row, index) => (
+              <tr key={index} className="hover:bg-soft/60">
+                {columns.map((column) => (
+                  <td key={column} className="px-4 py-3 text-muted">{row[column]}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -234,7 +236,7 @@ export function OperationsPage({
       <section className="mt-5">
         <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-lg font-semibold text-ink">{tableTitle}</h2>
-          <div className="flex gap-2">
+          <div className="grid gap-2 sm:flex">
             <input className="field w-full sm:w-64" placeholder="Search..." />
             <button className="btn-secondary" type="button">Filters</button>
             <button className="btn-secondary" type="button">Export</button>

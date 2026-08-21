@@ -14,8 +14,12 @@ export default function WalletPage() {
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
   const [amount, setAmount] = useState("");
   const [destination, setDestination] = useState("");
+  const [code, setCode] = useState("");
+  const [confirmationMessage, setConfirmationMessage] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [sendingCode, setSendingCode] = useState(false);
+  const [codeRequested, setCodeRequested] = useState(false);
 
   function load() {
     Promise.all([
@@ -34,16 +38,37 @@ export default function WalletPage() {
 
   useEffect(load, []);
 
+  function requestCode(event: React.FormEvent) {
+    event.preventDefault();
+    setSendingCode(true);
+    setError("");
+    setConfirmationMessage("");
+    apiFetch<{ sent: boolean; dev_code?: string; message: string; expires_at: string }>("/api/v1/wallet/withdraw/code", {
+      method: "POST",
+      body: JSON.stringify({ amount: Number(amount), destination })
+    })
+      .then((response) => {
+        setCodeRequested(true);
+        setConfirmationMessage(response.dev_code ? `${response.message} Code: ${response.dev_code}` : response.message);
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : "Could not send withdrawal code."))
+      .finally(() => setSendingCode(false));
+  }
+
   function submitWithdrawal(event: React.FormEvent) {
     event.preventDefault();
     setSaving(true);
+    setError("");
     apiFetch<Withdrawal>("/api/v1/wallet/withdraw", {
       method: "POST",
-      body: JSON.stringify({ amount: Number(amount), destination })
+      body: JSON.stringify({ amount: Number(amount), destination, code })
     })
       .then(() => {
         setAmount("");
         setDestination("");
+        setCode("");
+        setCodeRequested(false);
+        setConfirmationMessage("");
         load();
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Could not request withdrawal."))
@@ -54,7 +79,8 @@ export default function WalletPage() {
     <>
       <OperationsTitle title="Wallet" description="Platform-held online merchant net funds available for payout." />
       {error ? <div className="panel mb-4 p-4 text-sm text-red-400">{error}</div> : null}
-      <section className="grid gap-4 md:grid-cols-3">
+      {confirmationMessage ? <div className="panel mb-4 p-4 text-sm text-accent">{confirmationMessage}</div> : null}
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <Metric label="Available Wallet Balance" value={summary ? money(summary.available, summary.currency) : "--"} />
         <Metric label="Total Online Credits" value={summary ? money(summary.total_credits, summary.currency) : "--"} />
         <Metric label="Pending Withdrawals" value={summary ? money(summary.pending_withdrawals, summary.currency) : "--"} />
@@ -62,12 +88,47 @@ export default function WalletPage() {
 
       <section className="panel mt-5 p-5">
         <h2 className="text-lg font-semibold text-ink">Request Withdrawal</h2>
-        <form className="mt-4 grid gap-3 md:grid-cols-[1fr_1fr_auto]" onSubmit={submitWithdrawal}>
-          <input className="field" inputMode="numeric" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="Amount" required />
-          <input className="field" value={destination} onChange={(event) => setDestination(event.target.value)} placeholder="Payout phone or destination" required />
-          <button className="btn" type="submit" disabled={saving}>{saving ? "Submitting..." : "Withdraw"}</button>
+        <form className="mt-4 grid gap-3 lg:grid-cols-[1fr_1fr_auto]" onSubmit={requestCode}>
+          <input
+            className="field"
+            inputMode="numeric"
+            value={amount}
+            onChange={(event) => {
+              setAmount(event.target.value);
+              setCode("");
+              setCodeRequested(false);
+              setConfirmationMessage("");
+            }}
+            placeholder="Amount"
+            required
+          />
+          <input
+            className="field"
+            value={destination}
+            onChange={(event) => {
+              setDestination(event.target.value);
+              setCode("");
+              setCodeRequested(false);
+              setConfirmationMessage("");
+            }}
+            placeholder="Payout phone or destination"
+            required
+          />
+          <button className="btn" type="submit" disabled={sendingCode}>{sendingCode ? "Sending..." : "Send Code"}</button>
         </form>
-        <p className="mt-3 text-xs text-muted">Automated provider payout is not enabled yet. Requests reserve wallet funds for manual payout processing.</p>
+        <form className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto]" onSubmit={submitWithdrawal}>
+          <input
+            className="field"
+            inputMode="numeric"
+            value={code}
+            onChange={(event) => setCode(event.target.value)}
+            placeholder="Email confirmation code"
+            required
+            disabled={!codeRequested}
+          />
+          <button className="btn" type="submit" disabled={saving || !codeRequested}>{saving ? "Confirming..." : "Confirm Withdrawal"}</button>
+        </form>
+        <p className="mt-3 text-xs text-muted">A confirmation code is required before wallet funds are reserved for manual payout processing.</p>
       </section>
 
       <section className="mt-5">
