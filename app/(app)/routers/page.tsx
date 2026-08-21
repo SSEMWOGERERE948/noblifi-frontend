@@ -16,6 +16,12 @@ type RouterRow = {
   serial_number?: string;
   status: string;
   last_seen_at?: string;
+  telemetry_updated_at?: string;
+  telemetry_last_error?: string;
+  health_status?: string;
+  uptime?: string;
+  cpu_load?: string;
+  active_hotspot_users?: number;
 };
 
 export default function RoutersPage() {
@@ -24,10 +30,41 @@ export default function RoutersPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    apiFetch<RouterRow[]>("/api/v1/routers")
-      .then(setRouters)
-      .catch((err) => setError(err instanceof Error ? err.message : "Could not load routers."))
-      .finally(() => setLoading(false));
+    let cancelled = false;
+    let inFlight = false;
+
+    const loadRouters = async (initial = false) => {
+      if (inFlight) {
+        return;
+      }
+      inFlight = true;
+      if (initial) {
+        setLoading(true);
+      }
+      try {
+        const rows = await apiFetch<RouterRow[]>("/api/v1/routers");
+        if (!cancelled) {
+          setRouters(rows);
+          setError("");
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Could not load routers.");
+        }
+      } finally {
+        inFlight = false;
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadRouters(true);
+    const timer = window.setInterval(() => loadRouters(false), 30000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
   }, []);
 
   return (
@@ -71,11 +108,11 @@ export default function RoutersPage() {
                     <span className="text-xs">{router.routeros_version ?? "Version pending"}</span>
                   </td>
                   <td className="px-4 py-3">
-                    <StatusBadge label={titleCase(router.status)} />
+                    <StatusBadge label={titleCase(router.health_status ?? router.status)} />
                   </td>
-                  <td className="px-4 py-3 text-muted">0%</td>
-                  <td className="px-4 py-3 text-muted">{router.last_seen_at ? new Date(router.last_seen_at).toLocaleString() : "Last update pending"}</td>
-                  <td className="px-4 py-3 text-muted">0</td>
+                  <td className="px-4 py-3 text-muted">{formatCpu(router.cpu_load)}</td>
+                  <td className="px-4 py-3 text-muted">{formatUptime(router.uptime)}</td>
+                  <td className="px-4 py-3 text-muted">{router.active_hotspot_users ?? "--"}</td>
                   <td className="px-4 py-3 text-muted">
                     <Link href={`/routers/${router.id}`} className="font-semibold text-brand">
                       Open
@@ -98,4 +135,20 @@ export default function RoutersPage() {
 
 function titleCase(value: string) {
   return value ? value.charAt(0).toUpperCase() + value.slice(1).toLowerCase() : "Pending";
+}
+
+function formatCpu(value?: string) {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return "--";
+  }
+  return trimmed.endsWith("%") ? trimmed : `${trimmed}%`;
+}
+
+function formatUptime(value?: string) {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return "Telemetry pending";
+  }
+  return trimmed.replace(/(\d+)([wdhms])/g, "$1$2 ").trim();
 }

@@ -14,23 +14,51 @@ type RouterDetail = {
   expected_model?: string;
   model?: string;
   serial_number?: string;
-  router_os_version?: string;
+  routeros_version?: string;
   status: string;
+  health_status?: string;
+  uptime?: string;
+  cpu_load?: string;
+  free_memory?: string;
+  total_memory?: string;
+  active_hotspot_users?: number;
+  telemetry_updated_at?: string;
+  telemetry_last_error?: string;
+  wireguard_status?: string;
+  wire_guard_peer_status?: string;
+  wire_guard_last_handshake_at?: string;
+  wire_guard_last_error?: string;
   claim_token: string;
   config_status?: string;
   interfaces?: Array<{ name: string; type?: string; mac_address?: string; running: boolean; disabled: boolean }>;
   setup_session?: { current_step: string; remote_access_method?: string | null; configuration_method?: string | null };
   network_profile?: unknown;
 };
+type RouterRevenue = {
+  currency: string;
+  total_revenue: number;
+  today_revenue: number;
+  month_revenue: number;
+  successful_payments: number;
+};
 
 export default function RouterDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const [router, setRouter] = useState<RouterDetail | null>(null);
+  const [revenue, setRevenue] = useState<RouterRevenue | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    apiFetch<RouterDetail>(`/api/v1/routers/${id}`)
-      .then(setRouter)
+    Promise.all([
+      apiFetch<RouterDetail>(`/api/v1/routers/${id}`),
+      apiFetch<RouterRevenue>(`/api/v1/routers/${id}/revenue/summary`, {
+        fallback: { currency: "UGX", total_revenue: 0, today_revenue: 0, month_revenue: 0, successful_payments: 0 }
+      })
+    ])
+      .then(([routerData, revenueData]) => {
+        setRouter(routerData);
+        setRevenue(revenueData);
+      })
       .catch((err) => setError(err instanceof Error ? err.message : "Could not load router."));
   }, [id]);
 
@@ -43,7 +71,7 @@ export default function RouterDetailPage({ params }: { params: Promise<{ id: str
   }
 
   const interfaces = router.interfaces ?? [];
-  const isLinked = Boolean(router.serial_number || router.model || router.router_os_version || interfaces.length || router.status === "online" || router.status === "linked" || router.status === "provisioned");
+  const isLinked = Boolean(router.serial_number || router.model || router.routeros_version || interfaces.length || router.status === "online" || router.status === "linked" || router.status === "provisioned");
 
   return (
     <>
@@ -76,11 +104,54 @@ export default function RouterDetailPage({ params }: { params: Promise<{ id: str
               ["Expected Model", router.expected_model ?? "-"],
               ["Detected Model", router.model ?? "Not linked yet"],
               ["Serial Number", router.serial_number ?? "Not linked yet"],
-              ["RouterOS", router.router_os_version ?? "Not linked yet"],
-              ["Status", router.status],
+              ["RouterOS", router.routeros_version ?? "Not linked yet"],
+              ["Status", titleCase(router.health_status ?? router.status)],
               ["Claim Token", router.claim_token],
               ["Setup Step", router.setup_session?.current_step ?? "Not started"],
               ["Configuration", router.config_status ?? "Pending"]
+            ].map(([label, value]) => (
+              <div key={label} className="flex justify-between gap-4 border-b border-line pb-2">
+                <dt className="text-muted">{label}</dt>
+                <dd className="font-medium text-ink">{value}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+        <div className="panel p-5">
+          <h2 className="text-lg font-semibold text-ink">Live Health</h2>
+          <dl className="mt-4 grid gap-3 text-sm">
+            {[
+              ["Health", titleCase(router.health_status ?? router.status)],
+              ["CPU Load", formatCpu(router.cpu_load)],
+              ["Uptime", formatUptime(router.uptime)],
+              ["Active HotSpot Users", String(router.active_hotspot_users ?? "--")],
+              ["Memory", formatMemory(router.free_memory, router.total_memory)],
+              ["Last Telemetry", formatDateTime(router.telemetry_updated_at)],
+              ["Telemetry Error", router.telemetry_last_error ?? "-"],
+              ["WireGuard", router.wireguard_status || router.wire_guard_peer_status || "-"],
+              ["Last Handshake", formatDateTime(router.wire_guard_last_handshake_at)],
+              ["WireGuard Error", router.wire_guard_last_error ?? "-"]
+            ].map(([label, value]) => (
+              <div key={label} className="flex justify-between gap-4 border-b border-line pb-2">
+                <dt className="text-muted">{label}</dt>
+                <dd className="font-medium text-ink">{value}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+        <div className="panel p-5">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold text-ink">Online Sales</h2>
+            <Link className="btn-secondary" href={`/sales?router_id=${id}`}>
+              View all sales
+            </Link>
+          </div>
+          <dl className="mt-4 grid gap-3 text-sm">
+            {[
+              ["Today", formatMoney(revenue?.today_revenue ?? 0, revenue?.currency ?? "UGX")],
+              ["This Month", formatMoney(revenue?.month_revenue ?? 0, revenue?.currency ?? "UGX")],
+              ["Total", formatMoney(revenue?.total_revenue ?? 0, revenue?.currency ?? "UGX")],
+              ["Customers", `${revenue?.successful_payments ?? 0} successful purchases`]
             ].map(([label, value]) => (
               <div key={label} className="flex justify-between gap-4 border-b border-line pb-2">
                 <dt className="text-muted">{label}</dt>
@@ -121,4 +192,42 @@ export default function RouterDetailPage({ params }: { params: Promise<{ id: str
       </section>
     </>
   );
+}
+
+function titleCase(value: string) {
+  return value ? value.charAt(0).toUpperCase() + value.slice(1).toLowerCase() : "Pending";
+}
+
+function formatCpu(value?: string) {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return "--";
+  }
+  return trimmed.endsWith("%") ? trimmed : `${trimmed}%`;
+}
+
+function formatUptime(value?: string) {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return "Telemetry pending";
+  }
+  return trimmed.replace(/(\d+)([wdhms])/g, "$1$2 ").trim();
+}
+
+function formatMemory(free?: string, total?: string) {
+  if (!free && !total) {
+    return "--";
+  }
+  return `${free ?? "?"} / ${total ?? "?"}`;
+}
+
+function formatDateTime(value?: string) {
+  if (!value) {
+    return "-";
+  }
+  return new Date(value).toLocaleString();
+}
+
+function formatMoney(value: number, currency: string) {
+  return `${currency} ${new Intl.NumberFormat("en-UG").format(value || 0)}`;
 }
