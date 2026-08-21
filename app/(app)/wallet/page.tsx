@@ -6,7 +6,8 @@ import { apiFetch } from "@/lib/api";
 
 type WalletSummary = { currency: string; available: number; total_credits: number; total_debits: number; pending_withdrawals: number };
 type WalletTransaction = { id: string; type: string; direction: string; amount: number; currency: string; description: string; created_at: string };
-type Withdrawal = { id: string; amount: number; currency: string; payout_destination: string; status: string; created_at: string };
+type Withdrawal = { id: string; amount: number; currency: string; payout_destination: string; payout_account_name?: string; status: string; created_at: string };
+type WithdrawalRecipient = { destination: string; account_name: string; known: boolean };
 
 export default function WalletPage() {
   const [summary, setSummary] = useState<WalletSummary | null>(null);
@@ -16,6 +17,7 @@ export default function WalletPage() {
   const [destination, setDestination] = useState("");
   const [code, setCode] = useState("");
   const [confirmationMessage, setConfirmationMessage] = useState("");
+  const [recipient, setRecipient] = useState<WithdrawalRecipient | null>(null);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [sendingCode, setSendingCode] = useState(false);
@@ -37,6 +39,20 @@ export default function WalletPage() {
   }
 
   useEffect(load, []);
+
+  useEffect(() => {
+    const digits = destination.replace(/\D/g, "");
+    setRecipient(null);
+    if (digits.length < 9) return;
+
+    const timer = window.setTimeout(() => {
+      apiFetch<WithdrawalRecipient>(`/api/v1/wallet/withdraw/recipient?destination=${encodeURIComponent(destination)}`)
+        .then(setRecipient)
+        .catch(() => setRecipient(null));
+    }, 450);
+
+    return () => window.clearTimeout(timer);
+  }, [destination]);
 
   function requestCode(event: React.FormEvent) {
     event.preventDefault();
@@ -77,7 +93,7 @@ export default function WalletPage() {
 
   return (
     <>
-      <OperationsTitle title="Wallet" description="Platform-held online merchant net funds available for payout." />
+      <OperationsTitle title="Wallet" description="Online merchant net funds available for withdrawal." />
       {error ? <div className="panel mb-4 p-4 text-sm text-red-400">{error}</div> : null}
       {confirmationMessage ? <div className="panel mb-4 p-4 text-sm text-accent">{confirmationMessage}</div> : null}
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -116,6 +132,11 @@ export default function WalletPage() {
           />
           <button className="btn" type="submit" disabled={sendingCode}>{sendingCode ? "Sending..." : "Send Code"}</button>
         </form>
+        {recipient?.known ? (
+          <p className="mt-3 text-sm text-accent">Recipient: {recipient.account_name}</p>
+        ) : recipient ? (
+          <p className="mt-3 text-sm text-muted">No saved recipient name for this number yet.</p>
+        ) : null}
         <form className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto]" onSubmit={submitWithdrawal}>
           <input
             className="field"
@@ -128,7 +149,7 @@ export default function WalletPage() {
           />
           <button className="btn" type="submit" disabled={saving || !codeRequested}>{saving ? "Confirming..." : "Confirm Withdrawal"}</button>
         </form>
-        <p className="mt-3 text-xs text-muted">A confirmation code is required before wallet funds are reserved for manual payout processing.</p>
+        <p className="mt-3 text-xs text-muted">A confirmation code is required before wallet funds are withdrawn.</p>
       </section>
 
       <section className="mt-5">
@@ -154,7 +175,7 @@ export default function WalletPage() {
             columns={["Amount", "Destination", "Status", "Date"]}
             rows={withdrawals.map((item) => ({
               Amount: money(item.amount, item.currency),
-              Destination: item.payout_destination,
+              Destination: item.payout_account_name ? `${item.payout_account_name} (${item.payout_destination})` : item.payout_destination,
               Status: <StatusBadge label={label(item.status)} />,
               Date: formatDate(item.created_at)
             }))}
