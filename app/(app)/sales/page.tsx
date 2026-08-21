@@ -19,6 +19,7 @@ type RevenueSummary = {
 type BreakdownRow = { id: string; name: string; sales: number; revenue: number; currency: string };
 type TrendPoint = { label: string; revenue: number; purchases: number };
 type Transaction = {
+  transaction_id: string;
   customer: string;
   phone: string;
   hotspot: string;
@@ -36,6 +37,7 @@ type SalesSummary = { currency: string; gross_sales: number; platform_fees: numb
 type Sale = {
   id: string;
   source: string;
+  payment_reference: string;
   customer_name: string;
   phone: string;
   gross_amount: number;
@@ -209,9 +211,10 @@ export default function SalesPage() {
         <h2 className="mb-3 text-lg font-semibold text-ink">Sales Ledger</h2>
         {sales.length ? (
           <DataTable
-            columns={["Customer", "Source", "Gross", "NobliFi Fee", "Merchant Net", "Status", "Date"]}
+            columns={["Customer", "Transaction ID", "Source", "Gross", "NobliFi Fee", "Merchant Net", "Status", "Date"]}
             rows={sales.map((item) => ({
               Customer: safeString(item.customer_name) || "-",
+              "Transaction ID": safeString(item.payment_reference) || "-",
               Source: titleCase(safeString(item.source).replace(/_/g, " ")),
               Gross: money(item.gross_amount, item.currency),
               "NobliFi Fee": money(item.platform_fee_amount, item.currency),
@@ -231,8 +234,9 @@ export default function SalesPage() {
           <EmptyState title="Loading sales" description="Revenue records are being loaded." />
         ) : transactions.length ? (
           <DataTable
-            columns={["Customer", "Phone", "HotSpot", "Package", "Amount", "Provider", "Payment Status", "Voucher", "Device", "Date"]}
+            columns={["Transaction ID", "Customer", "Phone", "HotSpot", "Package", "Amount", "Provider", "Payment Status", "Voucher", "Device", "Date"]}
             rows={transactions.map((item) => ({
+              "Transaction ID": safeString(item.transaction_id) || "-",
               Customer: safeString(item.customer) || "-",
               Phone: safeString(item.phone) || "-",
               HotSpot: safeString(item.hotspot) || "-",

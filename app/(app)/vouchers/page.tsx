@@ -30,10 +30,19 @@ type Voucher = {
   code: string;
   status: string;
   plan_id: string;
+  plan_name?: string;
   channel?: string;
   batch_id?: string | null;
   template?: string | null;
   pattern?: string | null;
+  payer?: string;
+  payer_name?: string;
+  use_case?: string;
+  provider_reference?: string;
+  merchant_reference?: string;
+  first_login?: string;
+  expires_at?: string;
+  created_at?: string;
 };
 
 type Plan = {
@@ -130,6 +139,37 @@ function formatPrice(price?: number) {
     currency: "UGX",
     maximumFractionDigits: 0
   }).format(price);
+}
+
+function formatOptionalDate(value?: string) {
+  if (!value) {
+    return "-";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+
+  return date.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  });
+}
+
+function formatPhone(value?: string) {
+  if (!value) {
+    return "-";
+  }
+
+  const digits = value.replace(/\D/g, "");
+  if (digits.length === 12 && digits.startsWith("256")) {
+    return `+${digits}`;
+  }
+
+  return value;
 }
 
 function randomVoucherPreviewCode(maxLength = 9) {
@@ -986,14 +1026,16 @@ export default function VouchersPage() {
           <DataTable
             columns={[
               "Select",
-              "Code",
-              "Plan",
+              "Voucher Code",
               "Channel",
-              "Template",
-              "Characters",
-              "Length",
-              "Batch",
-              "Status"
+              "Package",
+              "Payer",
+              "Payer Name",
+              "Status",
+              "First Login",
+              "Expires On",
+              "Use Case",
+              "Created On"
             ]}
             rows={vouchers.map((voucher) => {
               const plan = plansById.get(
@@ -1014,34 +1056,26 @@ export default function VouchersPage() {
                     className="h-4 w-4 cursor-pointer accent-emerald-400"
                   />
                 ),
-                Code: (
+                "Voucher Code": (
                   <span className="font-mono font-semibold text-ink">
                     {voucher.code}
                   </span>
                 ),
-                Plan:
-                  plan?.name || voucher.plan_id,
+                Package:
+                  voucher.plan_name || plan?.name || voucher.plan_id,
                 Channel:
                   voucher.channel ?? "physical",
-                Template:
-                  voucher.template ?? "-",
-                Characters:
-                  voucher.pattern === "alphabetic"
-                    ? "Letters only"
-                    : voucher.pattern === "numeric"
-                      ? "Numbers only"
-                      : voucher.pattern === "alphanumeric"
-                        ? "Letters + Numbers"
-                        : voucher.pattern ?? "-",
-                Length:
-                  voucher.code?.length ?? "-",
-                Batch:
-                  voucher.batch_id ?? "-",
+                Payer: voucher.payer ? formatPhone(voucher.payer) : "-",
+                "Payer Name": voucher.payer_name || "-",
                 Status: (
                   <StatusBadge
                     label={voucher.status}
                   />
-                )
+                ),
+                "First Login": formatOptionalDate(voucher.first_login),
+                "Expires On": formatOptionalDate(voucher.expires_at),
+                "Use Case": voucher.use_case || (voucher.channel === "online" ? "Mobile Money Sale" : "Physical Voucher"),
+                "Created On": formatOptionalDate(voucher.created_at)
               };
             })}
           />
