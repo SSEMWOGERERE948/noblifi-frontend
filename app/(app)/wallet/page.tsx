@@ -123,8 +123,7 @@ type WithdrawalRecipient = {
    * Examples:
    *
    * iotec_verified_history
-   * iotec
-   * unknown
+   * iotec_unavailable_before_disbursement
    */
   source?: string;
 };
@@ -957,7 +956,7 @@ export default function WalletPage() {
               </div>
             ) : (
               <div className="mt-3 inline-flex rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-xs font-semibold text-amber-300">
-                Saved recipient —
+                Saved recipient,
                 verification unavailable
               </div>
             )}
@@ -974,9 +973,10 @@ export default function WalletPage() {
             </p>
 
             <p className="mt-1 text-sm text-muted">
-              NobliFi has no previous
-              ioTec-verified mobile-money
-              name for this number.
+              ioTec resolves recipient names
+              during the disbursement
+              lifecycle. No pre-disbursement
+              name check is available here.
             </p>
 
             <p className="mt-2 text-xs text-muted">
