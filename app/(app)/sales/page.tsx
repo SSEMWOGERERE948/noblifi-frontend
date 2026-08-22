@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { DataTable, EmptyState, OperationsTitle, StatusBadge } from "@/components/OperationsUI";
 import { apiFetch } from "@/lib/api";
+import type { AuthUser } from "@/lib/auth";
 
 type RevenueSummary = {
   currency: string;
@@ -78,8 +79,10 @@ export default function SalesPage() {
   const [salesSearch, setSalesSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [isSuperadmin, setIsSuperadmin] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
     const params = new URLSearchParams();
     if (range) params.set("range", range);
     if (routerID) params.set("router_id", routerID);
@@ -88,16 +91,30 @@ export default function SalesPage() {
     const query = params.toString() ? `?${params.toString()}` : "";
 
     setLoading(true);
-    Promise.all([
-      apiFetch<RevenueSummary>(`/api/v1/revenue/summary${query}`, { fallback: emptySummary }),
-      apiFetch<BreakdownRow[]>(`/api/v1/revenue/by-hotspot${query}`, { fallback: [] }),
-      apiFetch<BreakdownRow[]>(`/api/v1/revenue/by-package${query}`, { fallback: [] }),
-      apiFetch<TrendPoint[]>(`/api/v1/revenue/trend${query}`, { fallback: [] }),
-      apiFetch<Transaction[]>(`/api/v1/revenue/transactions${query ? `${query}&limit=100` : "?limit=100"}`, { fallback: [] }),
-      apiFetch<SalesSummary>("/api/v1/sales/summary", { fallback: { currency: "UGX", gross_sales: 0, platform_fees: 0, merchant_net: 0, physical_sales: 0 } }),
-      apiFetch<Sale[]>("/api/v1/sales?limit=100", { fallback: [] })
-    ])
-      .then(([summaryData, hotspotData, packageData, trendData, transactionData, salesSummaryData, salesData]) => {
+
+    async function load() {
+      try {
+        const { user } = await apiFetch<{ user: AuthUser }>("/api/v1/auth/me");
+        if (cancelled) return;
+
+        if (user.role === "superadmin") {
+          setIsSuperadmin(true);
+          setError("");
+          return;
+        }
+
+        setIsSuperadmin(false);
+        const [summaryData, hotspotData, packageData, trendData, transactionData, salesSummaryData, salesData] = await Promise.all([
+          apiFetch<RevenueSummary>(`/api/v1/revenue/summary${query}`, { fallback: emptySummary }),
+          apiFetch<BreakdownRow[]>(`/api/v1/revenue/by-hotspot${query}`, { fallback: [] }),
+          apiFetch<BreakdownRow[]>(`/api/v1/revenue/by-package${query}`, { fallback: [] }),
+          apiFetch<TrendPoint[]>(`/api/v1/revenue/trend${query}`, { fallback: [] }),
+          apiFetch<Transaction[]>(`/api/v1/revenue/transactions${query ? `${query}&limit=100` : "?limit=100"}`, { fallback: [] }),
+          apiFetch<SalesSummary>("/api/v1/sales/summary", { fallback: { currency: "UGX", gross_sales: 0, platform_fees: 0, merchant_net: 0, physical_sales: 0 } }),
+          apiFetch<Sale[]>("/api/v1/sales?limit=100", { fallback: [] })
+        ]);
+
+        if (cancelled) return;
         setSummary(normalizeRevenueSummary(summaryData));
         setHotspots(asArray(hotspotData));
         setPackages(asArray(packageData));
@@ -106,9 +123,18 @@ export default function SalesPage() {
         setSalesSummary(normalizeSalesSummary(salesSummaryData));
         setSales(asArray(salesData));
         setError("");
-      })
-      .catch((err) => setError(err instanceof Error ? err.message : "Could not load revenue."))
-      .finally(() => setLoading(false));
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : "Could not load revenue.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
   }, [range, routerID, provider, status]);
 
   const maxTrend = Math.max(...trend.map((point) => safeNumber(point.revenue)), 1);
@@ -139,6 +165,26 @@ export default function SalesPage() {
     ["Successful Payments", String(safeNumber(summary.successful_payments)), "Paid transactions only"],
     ["Pending Payments", String(safeNumber(summary.pending_payments)), `Pending value ${money(summary.pending_value, summary.currency)}`]
   ];
+
+  if (isSuperadmin) {
+    return (
+      <>
+        <OperationsTitle
+          title="Sales"
+          description="Sales dashboards are hidden for superadmins. Use Wallet or Books to view NobliFi fees and subscription payments as read-only records."
+        />
+        <EmptyState
+          title="Sales hidden for superadmin"
+          description="Superadmins can view platform-owned NobliFi fees, subscription fees, and read-only client account data from the Wallet and Books pages."
+          action={
+            <a className="btn" href="/wallet">
+              Open Wallet
+            </a>
+          }
+        />
+      </>
+    );
+  }
 
   return (
     <>

@@ -12,7 +12,7 @@ const items = [
   { href: "/routers", label: "Routers", icon: "R" },
   { href: "/usage-analytics", label: "Usage Analytics", icon: "U" },
   { href: "/support-hub", label: "Support Hub", icon: "H" },
-  { href: "/sales", label: "Sales", icon: "$" },
+  { href: "/sales", label: "Sales", icon: "$", adminOnly: true },
   { href: "/wallet", label: "Wallet", icon: "W" },
   { href: "/float", label: "Float", icon: "F" },
   { href: "/agent-pos", label: "Agent POS", icon: "A" },
@@ -53,7 +53,12 @@ export function Sidebar() {
   }, []);
 
   const visibleItems = useMemo(
-    () => items.filter((item) => !item.superadminOnly || user?.role === "superadmin"),
+    () =>
+      items.filter((item) => {
+        if (item.superadminOnly && user?.role !== "superadmin") return false;
+        if (item.adminOnly && user?.role === "superadmin") return false;
+        return true;
+      }),
     [user]
   );
 

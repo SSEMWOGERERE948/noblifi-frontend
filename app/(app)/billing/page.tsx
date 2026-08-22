@@ -188,7 +188,7 @@ export default function BillingPage() {
     <>
       <OperationsTitle
         title="Books of Accounts"
-        description="Superadmin view of platform income, subscription payments, and per-user account statements."
+        description="Read-only view of NobliFi fees, subscription payments, and client account statements."
         action={
           <button className="btn-secondary" type="button" onClick={() => void load()}>
             Refresh
@@ -206,24 +206,22 @@ export default function BillingPage() {
       {!loading && allowed ? (
         <>
           <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <Metric label="Platform Revenue" value={money(summary.total_platform_revenue, summary.currency)} />
-            <Metric label="Online Token Fees" value={money(summary.online_token_fees, summary.currency)} detail={`${summary.online_token_purchases} paid token purchases`} />
-            <Metric label="Subscription Money" value={money(summary.subscription_revenue, summary.currency)} detail={`${summary.subscription_payments} paid subscriptions`} />
-            <Metric label="Online Token Gross" value={money(summary.online_token_gross, summary.currency)} />
+            <Metric label="NobliFi Fees" value={money(summary.online_token_fees, summary.currency)} detail={`${summary.online_token_purchases} paid token purchases`} />
+            <Metric label="Subscription Fees" value={money(summary.subscription_revenue, summary.currency)} detail={`${summary.subscription_payments} paid subscriptions`} />
+            <Metric label="Platform Money" value={money(summary.total_platform_revenue, summary.currency)} detail="NobliFi fees plus subscriptions" />
+            <Metric label="Read-only Records" value={String(tokenFees.length + subscriptions.length)} detail="Fee and subscription rows loaded" />
           </section>
 
           <section className="mt-5">
-            <h2 className="mb-3 text-lg font-semibold text-ink">Money Received From Online Tokens</h2>
+            <h2 className="mb-3 text-lg font-semibold text-ink">NobliFi Fees by User</h2>
             {tokenFees.length ? (
               <DataTable
-                columns={["User", "Package", "Customer", "Gross", "NobliFi Fee", "Merchant Net", "Reference", "Date"]}
+                columns={["User", "Package", "Customer", "NobliFi Fee", "Reference", "Date"]}
                 rows={tokenFees.map((row) => ({
                   User: userLabel(row.user_name, row.user_email),
                   Package: row.package || "-",
                   Customer: row.customer_name || row.phone || "-",
-                  Gross: money(row.gross_amount, row.currency),
                   "NobliFi Fee": money(row.platform_fee_amount, row.currency),
-                  "Merchant Net": money(row.merchant_net_amount, row.currency),
                   Reference: row.payment_reference || "-",
                   Date: formatDate(row.sold_at)
                 }))}
@@ -253,13 +251,12 @@ export default function BillingPage() {
           </section>
 
           <section className="mt-5">
-            <h2 className="mb-3 text-lg font-semibold text-ink">Accounts Per User</h2>
+            <h2 className="mb-3 text-lg font-semibold text-ink">Client Money Snapshot</h2>
             {accounts.length ? (
               <DataTable
-                columns={["User", "Token Gross", "NobliFi Fees", "Subscriptions", "Wallet Available", "Pending Withdrawals", "Paid Withdrawals"]}
+                columns={["User", "NobliFi Fees", "Subscriptions", "Wallet Available", "Pending Withdrawals", "Paid Withdrawals"]}
                 rows={accounts.map((row) => ({
                   User: userLabel(row.user_name, row.user_email),
-                  "Token Gross": money(row.online_token_gross),
                   "NobliFi Fees": money(row.online_token_fees),
                   Subscriptions: money(row.subscription_revenue),
                   "Wallet Available": money(row.wallet_available),
@@ -303,7 +300,7 @@ export default function BillingPage() {
 
             {selectedAccount ? (
               <div className="mt-4 grid gap-3 md:grid-cols-3">
-                <MiniMetric label="Merchant Net Sales" value={money(selectedAccount.merchant_net_sales)} />
+                <MiniMetric label="NobliFi Fees" value={money(selectedAccount.online_token_fees)} />
                 <MiniMetric label="Wallet Available" value={money(selectedAccount.wallet_available)} />
                 <MiniMetric label="Subscriptions Paid" value={money(selectedAccount.subscription_revenue)} />
               </div>

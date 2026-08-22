@@ -1334,12 +1334,12 @@ function SuperadminWalletView({
         />
 
         <Metric
-          label="Total Platform Revenue"
-          value={money(
-            revenue.total_platform_revenue,
-            currency
+          label="Read-only Records"
+          value={String(
+            tokenFees.length +
+              subscriptionFees.length
           )}
-          detail="NobliFi fees plus subscriptions"
+          detail="Fee and subscription rows loaded"
         />
       </section>
 
@@ -1349,7 +1349,7 @@ function SuperadminWalletView({
             NobliFi Fees by User
           </h2>
           <p className="mt-1 text-xs text-muted">
-            Platform fees received from online token purchases.
+            Read-only platform fees received from online token purchases.
           </p>
         </div>
 
@@ -1359,9 +1359,7 @@ function SuperadminWalletView({
               "User",
               "Package",
               "Customer",
-              "Gross",
               "NobliFi Fee",
-              "Merchant Net",
               "Reference",
               "Date"
             ]}
@@ -1375,16 +1373,8 @@ function SuperadminWalletView({
                 row.customer_name ||
                 row.phone ||
                 "-",
-              Gross: money(
-                row.gross_amount,
-                row.currency
-              ),
               "NobliFi Fee": money(
                 row.platform_fee_amount,
-                row.currency
-              ),
-              "Merchant Net": money(
-                row.merchant_net_amount,
                 row.currency
               ),
               Reference:
