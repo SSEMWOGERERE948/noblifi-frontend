@@ -14,6 +14,7 @@ import {
 } from "@/components/OperationsUI";
 
 import { apiFetch } from "@/lib/api";
+import type { AuthUser } from "@/lib/auth";
 
 /* =========================================================
  * TYPES
@@ -47,7 +48,7 @@ type Withdrawal = {
   payout_account_name?: string;
 
   /*
-   * withdrawal success/mobile-money recipient-name state.
+   * ioTec/mobile-money recipient-name state.
    *
    * Examples:
    * Fetched
@@ -101,6 +102,56 @@ type WithdrawalCodeResponse = {
   expires_at: string;
 };
 
+type PlatformRevenueSummary = {
+  currency: string;
+  online_token_purchases: number;
+  online_token_gross: number;
+  online_token_fees: number;
+  subscription_payments: number;
+  subscription_revenue: number;
+  total_platform_revenue: number;
+};
+
+type TokenFeeRow = {
+  id: string;
+  user_name: string;
+  user_email: string;
+  customer_name: string;
+  phone: string;
+  package: string;
+  router: string;
+  gross_amount: number;
+  platform_fee_amount: number;
+  merchant_net_amount: number;
+  currency: string;
+  payment_reference: string;
+  sold_at: string;
+};
+
+type SubscriptionFeeRow = {
+  id: string;
+  user_name: string;
+  user_email: string;
+  amount: number;
+  currency: string;
+  provider: string;
+  status: string;
+  merchant_reference: string;
+  provider_reference: string;
+  paid_at?: string;
+  created_at: string;
+};
+
+const emptyPlatformRevenue: PlatformRevenueSummary = {
+  currency: "UGX",
+  online_token_purchases: 0,
+  online_token_gross: 0,
+  online_token_fees: 0,
+  subscription_payments: 0,
+  subscription_revenue: 0,
+  total_platform_revenue: 0
+};
+
 /* =========================================================
  * API PATHS
  * ========================================================= */
@@ -116,6 +167,11 @@ function withdrawalStatusEndpoint(
  * ========================================================= */
 
 export default function WalletPage() {
+  const [
+    currentUser,
+    setCurrentUser
+  ] = useState<AuthUser | null>(null);
+
   const [
     summary,
     setSummary
@@ -134,6 +190,23 @@ export default function WalletPage() {
     withdrawals,
     setWithdrawals
   ] = useState<Withdrawal[]>([]);
+
+  const [
+    platformRevenue,
+    setPlatformRevenue
+  ] = useState<PlatformRevenueSummary>(
+    emptyPlatformRevenue
+  );
+
+  const [
+    tokenFees,
+    setTokenFees
+  ] = useState<TokenFeeRow[]>([]);
+
+  const [
+    subscriptionFees,
+    setSubscriptionFees
+  ] = useState<SubscriptionFeeRow[]>([]);
 
   const [
     amount,
@@ -189,6 +262,61 @@ export default function WalletPage() {
   const load =
     useCallback(async () => {
       try {
+        const { user } =
+          await apiFetch<{
+            user: AuthUser;
+          }>("/api/v1/auth/me");
+
+        setCurrentUser(user);
+
+        if (user.role === "superadmin") {
+          const [
+            walletData,
+            revenueData,
+            tokenFeeData,
+            subscriptionFeeData
+          ] = await Promise.all([
+            apiFetch<WalletSummary>(
+              "/api/v1/admin/finance/platform-wallet"
+            ),
+
+            apiFetch<PlatformRevenueSummary>(
+              "/api/v1/admin/revenue/platform-summary",
+              {
+                fallback:
+                  emptyPlatformRevenue
+              }
+            ),
+
+            apiFetch<TokenFeeRow[]>(
+              "/api/v1/admin/revenue/online-token-fees?limit=100",
+              {
+                fallback: []
+              }
+            ),
+
+            apiFetch<SubscriptionFeeRow[]>(
+              "/api/v1/admin/revenue/subscriptions?limit=100",
+              {
+                fallback: []
+              }
+            )
+          ]);
+
+          setSummary(walletData);
+          setPlatformRevenue(
+            revenueData
+          );
+          setTokenFees(tokenFeeData);
+          setSubscriptionFees(
+            subscriptionFeeData
+          );
+          setTransactions([]);
+          setWithdrawals([]);
+          setError("");
+          return;
+        }
+
         const [
           walletData,
           transactionData,
@@ -678,6 +806,21 @@ export default function WalletPage() {
    * RENDER
    * ======================================================= */
 
+  if (currentUser?.role === "superadmin") {
+    return (
+      <SuperadminWalletView
+        summary={summary}
+        revenue={platformRevenue}
+        tokenFees={tokenFees}
+        subscriptionFees={
+          subscriptionFees
+        }
+        error={error}
+        onRefresh={load}
+      />
+    );
+  }
+
   return (
     <>
       <OperationsTitle
@@ -846,7 +989,7 @@ export default function WalletPage() {
           <p className="mt-1 text-sm text-muted">
             NobliFi will send money to the
             Mobile Money number you enter.
-            withdrawal success returns the receiver name
+            ioTec returns the receiver name
             after the payout is submitted,
             and that name appears on the
             withdrawal receipt.
@@ -899,13 +1042,13 @@ export default function WalletPage() {
             Always confirm the phone
             number before sending. After
             confirmation, funds are
-            reserved while withdrawal success
+            reserved while ioTec
             processes the payout. The
             withdrawal is only marked Paid
             when the provider confirms the
             transfer succeeded, and the
             receiver name is shown once
-            withdrawal success returns it.
+            ioTec returns it.
           </p>
         </div>
       </section>
@@ -1008,7 +1151,7 @@ export default function WalletPage() {
               "Amount",
               "Recipient",
               "Status",
-              "withdrawal success Status",
+              "ioTec Status",
               "Reference",
               "Date",
               "Action"
@@ -1037,7 +1180,7 @@ export default function WalletPage() {
                   />
                 ),
 
-                "withdrawal success Status": (
+                "ioTec Status": (
                   <ProviderStatusCell
                     withdrawal={
                       item
@@ -1119,6 +1262,200 @@ export default function WalletPage() {
   );
 }
 
+function SuperadminWalletView({
+  summary,
+  revenue,
+  tokenFees,
+  subscriptionFees,
+  error,
+  onRefresh
+}: {
+  summary: WalletSummary | null;
+  revenue: PlatformRevenueSummary;
+  tokenFees: TokenFeeRow[];
+  subscriptionFees: SubscriptionFeeRow[];
+  error: string;
+  onRefresh: () => Promise<void>;
+}) {
+  const currency =
+    summary?.currency ||
+    revenue.currency ||
+    "UGX";
+
+  return (
+    <>
+      <OperationsTitle
+        title="Platform Wallet"
+        description="Superadmin view of NobliFi fees, subscription fees, and the users who paid them."
+        action={
+          <button
+            className="btn-secondary"
+            type="button"
+            onClick={() => void onRefresh()}
+          >
+            Refresh
+          </button>
+        }
+      />
+
+      {error ? (
+        <div className="panel mb-4 p-4 text-sm text-red-400">
+          {error}
+        </div>
+      ) : null}
+
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Metric
+          label="Platform Wallet Balance"
+          value={
+            summary
+              ? money(summary.available, currency)
+              : "--"
+          }
+          detail="Available to NobliFi"
+        />
+
+        <Metric
+          label="NobliFi Fees"
+          value={money(
+            revenue.online_token_fees,
+            currency
+          )}
+          detail={`${revenue.online_token_purchases} online token purchases`}
+        />
+
+        <Metric
+          label="Subscription Fees"
+          value={money(
+            revenue.subscription_revenue,
+            currency
+          )}
+          detail={`${revenue.subscription_payments} paid subscriptions`}
+        />
+
+        <Metric
+          label="Total Platform Revenue"
+          value={money(
+            revenue.total_platform_revenue,
+            currency
+          )}
+          detail="NobliFi fees plus subscriptions"
+        />
+      </section>
+
+      <section className="mt-5">
+        <div className="mb-3">
+          <h2 className="text-lg font-semibold text-ink">
+            NobliFi Fees by User
+          </h2>
+          <p className="mt-1 text-xs text-muted">
+            Platform fees received from online token purchases.
+          </p>
+        </div>
+
+        {tokenFees.length ? (
+          <DataTable
+            columns={[
+              "User",
+              "Package",
+              "Customer",
+              "Gross",
+              "NobliFi Fee",
+              "Merchant Net",
+              "Reference",
+              "Date"
+            ]}
+            rows={tokenFees.map((row) => ({
+              User: userLabel(
+                row.user_name,
+                row.user_email
+              ),
+              Package: row.package || "-",
+              Customer:
+                row.customer_name ||
+                row.phone ||
+                "-",
+              Gross: money(
+                row.gross_amount,
+                row.currency
+              ),
+              "NobliFi Fee": money(
+                row.platform_fee_amount,
+                row.currency
+              ),
+              "Merchant Net": money(
+                row.merchant_net_amount,
+                row.currency
+              ),
+              Reference:
+                row.payment_reference || "-",
+              Date: formatDate(row.sold_at)
+            }))}
+          />
+        ) : (
+          <EmptyState
+            title="No NobliFi fees yet"
+            description="Platform fees from paid online tokens will appear here."
+          />
+        )}
+      </section>
+
+      <section className="mt-5">
+        <div className="mb-3">
+          <h2 className="text-lg font-semibold text-ink">
+            Subscription Fees by User
+          </h2>
+          <p className="mt-1 text-xs text-muted">
+            Subscription payments collected by NobliFi.
+          </p>
+        </div>
+
+        {subscriptionFees.length ? (
+          <DataTable
+            columns={[
+              "User",
+              "Amount",
+              "Provider",
+              "Status",
+              "Reference",
+              "Date"
+            ]}
+            rows={subscriptionFees.map((row) => ({
+              User: userLabel(
+                row.user_name,
+                row.user_email
+              ),
+              Amount: money(
+                row.amount,
+                row.currency
+              ),
+              Provider: row.provider || "-",
+              Status: (
+                <StatusBadge
+                  label={row.status || "paid"}
+                />
+              ),
+              Reference:
+                row.merchant_reference ||
+                row.provider_reference ||
+                "-",
+              Date: formatDate(
+                row.paid_at ||
+                  row.created_at
+              )
+            }))}
+          />
+        ) : (
+          <EmptyState
+            title="No subscription fees yet"
+            description="Paid NobliFi subscriptions will appear here."
+          />
+        )}
+      </section>
+    </>
+  );
+}
+
 /* =========================================================
  * WITHDRAWAL RECIPIENT CELL
  * ========================================================= */
@@ -1155,7 +1492,7 @@ function WithdrawalRecipientCell({
 
       {verified ? (
         <p className="mt-1 text-xs font-medium text-accent">
-          âœ“ withdrawal success verified
+          ioTec verified
         </p>
       ) : withdrawal.payee_name_status ? (
         <p className="mt-1 text-xs text-muted">
@@ -1248,7 +1585,7 @@ function ProviderStatusCell({
   ) {
     return (
       <span className="text-sm text-muted">
-        Waiting for withdrawal success
+        Waiting for ioTec
       </span>
     );
   }
@@ -1369,10 +1706,12 @@ function withdrawalReceiver(
 
 function Metric({
   label,
-  value
+  value,
+  detail
 }: {
   label: string;
   value: string;
+  detail?: string;
 }) {
   return (
     <div className="panel p-5">
@@ -1383,6 +1722,12 @@ function Metric({
       <p className="mt-3 text-2xl font-semibold text-ink">
         {value}
       </p>
+
+      {detail ? (
+        <p className="mt-2 text-xs text-muted">
+          {detail}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -1426,6 +1771,16 @@ function label(
       (char) =>
         char.toUpperCase()
     );
+}
+
+function userLabel(
+  name?: string,
+  email?: string
+) {
+  if (name && email) {
+    return `${name} (${email})`;
+  }
+  return name || email || "-";
 }
 
 function formatPhone(
