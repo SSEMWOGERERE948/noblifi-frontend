@@ -47,7 +47,7 @@ type Withdrawal = {
   payout_account_name?: string;
 
   /*
-   * ioTec/mobile-money recipient-name state.
+   * withdrawal success/mobile-money recipient-name state.
    *
    * Examples:
    * Fetched
@@ -846,7 +846,7 @@ export default function WalletPage() {
           <p className="mt-1 text-sm text-muted">
             NobliFi will send money to the
             Mobile Money number you enter.
-            ioTec returns the receiver name
+            withdrawal success returns the receiver name
             after the payout is submitted,
             and that name appears on the
             withdrawal receipt.
@@ -899,13 +899,13 @@ export default function WalletPage() {
             Always confirm the phone
             number before sending. After
             confirmation, funds are
-            reserved while ioTec
+            reserved while withdrawal success
             processes the payout. The
             withdrawal is only marked Paid
             when the provider confirms the
             transfer succeeded, and the
             receiver name is shown once
-            ioTec returns it.
+            withdrawal success returns it.
           </p>
         </div>
       </section>
@@ -1008,7 +1008,7 @@ export default function WalletPage() {
               "Amount",
               "Recipient",
               "Status",
-              "ioTec Status",
+              "withdrawal success Status",
               "Reference",
               "Date",
               "Action"
@@ -1037,7 +1037,7 @@ export default function WalletPage() {
                   />
                 ),
 
-                "ioTec Status": (
+                "withdrawal success Status": (
                   <ProviderStatusCell
                     withdrawal={
                       item
@@ -1155,7 +1155,7 @@ function WithdrawalRecipientCell({
 
       {verified ? (
         <p className="mt-1 text-xs font-medium text-accent">
-          âœ“ ioTec verified
+          âœ“ withdrawal success verified
         </p>
       ) : withdrawal.payee_name_status ? (
         <p className="mt-1 text-xs text-muted">
@@ -1248,7 +1248,7 @@ function ProviderStatusCell({
   ) {
     return (
       <span className="text-sm text-muted">
-        Waiting for ioTec
+        Waiting for withdrawal success
       </span>
     );
   }

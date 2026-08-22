@@ -21,9 +21,9 @@ const items = [
   { href: "/captive-templates", label: "Captive Templates", icon: "C" },
   { href: "/sms", label: "SMS", icon: "M" },
   { href: "/payment-gateways", label: "Payment Gateways", icon: "P" },
-  { href: "/billing", label: "Billing", icon: "B" },
+  { href: "/billing", label: "Books", icon: "B", superadminOnly: true },
   { href: "/subscriptions", label: "Subscriptions", icon: "$" },
-  { href: "/users", label: "Users", icon: "U" },
+  { href: "/users", label: "Users", icon: "U", superadminOnly: true },
   { href: "/plans", label: "Plans & Pricing", icon: "P" }
 ];
 
@@ -53,7 +53,7 @@ export function Sidebar() {
   }, []);
 
   const visibleItems = useMemo(
-    () => items.filter((item) => item.href !== "/users" || user?.role === "superadmin"),
+    () => items.filter((item) => !item.superadminOnly || user?.role === "superadmin"),
     [user]
   );
 
