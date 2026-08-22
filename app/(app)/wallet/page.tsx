@@ -274,7 +274,8 @@ export default function WalletPage() {
             walletData,
             revenueData,
             tokenFeeData,
-            subscriptionFeeData
+            subscriptionFeeData,
+            withdrawalData
           ] = await Promise.all([
             apiFetch<WalletSummary>(
               "/api/v1/admin/finance/platform-wallet"
@@ -300,6 +301,13 @@ export default function WalletPage() {
               {
                 fallback: []
               }
+            ),
+
+            apiFetch<Withdrawal[]>(
+              "/api/v1/admin/finance/withdrawals?wallet_type=platform&limit=100",
+              {
+                fallback: []
+              }
             )
           ]);
 
@@ -312,7 +320,7 @@ export default function WalletPage() {
             subscriptionFeeData
           );
           setTransactions([]);
-          setWithdrawals([]);
+          setWithdrawals(withdrawalData);
           setError("");
           return;
         }
@@ -429,32 +437,36 @@ export default function WalletPage() {
               );
             }
 
-            const [
-              walletData,
-              transactionData
-            ] =
-              await Promise.all([
-                apiFetch<WalletSummary>(
-                  "/api/v1/wallet"
-                ),
+            if (currentUser?.role === "superadmin") {
+              await load();
+            } else {
+              const [
+                walletData,
+                transactionData
+              ] =
+                await Promise.all([
+                  apiFetch<WalletSummary>(
+                    "/api/v1/wallet"
+                  ),
 
-                apiFetch<
-                  WalletTransaction[]
-                >(
-                  "/api/v1/wallet/transactions",
-                  {
-                    fallback: []
-                  }
-                )
-              ]);
+                  apiFetch<
+                    WalletTransaction[]
+                  >(
+                    "/api/v1/wallet/transactions",
+                    {
+                      fallback: []
+                    }
+                  )
+                ]);
 
-            setSummary(
-              walletData
-            );
+              setSummary(
+                walletData
+              );
 
-            setTransactions(
-              transactionData
-            );
+              setTransactions(
+                transactionData
+              );
+            }
           }
 
           return latest;
@@ -476,7 +488,7 @@ export default function WalletPage() {
           }
         }
       },
-      []
+      [currentUser?.role, load]
     );
 
   /* =======================================================
@@ -802,6 +814,151 @@ export default function WalletPage() {
     }
   }
 
+  async function submitPlatformWithdrawal(
+    event: React.FormEvent
+  ) {
+    event.preventDefault();
+
+    setError("");
+    setConfirmationMessage("");
+
+    const numericAmount =
+      Number(amount);
+
+    if (
+      !Number.isFinite(
+        numericAmount
+      ) ||
+      numericAmount <= 0
+    ) {
+      setError(
+        "Enter a valid withdrawal amount."
+      );
+
+      return;
+    }
+
+    if (
+      numericAmount < 500
+    ) {
+      setError(
+        "The minimum withdrawal amount is UGX 500."
+      );
+
+      return;
+    }
+
+    if (
+      summary &&
+      numericAmount >
+        summary.available
+    ) {
+      setError(
+        "The withdrawal amount is greater than the platform wallet balance."
+      );
+
+      return;
+    }
+
+    if (
+      !destination.trim()
+    ) {
+      setError(
+        "Enter the Mobile Money phone number."
+      );
+
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      const withdrawal =
+        await apiFetch<Withdrawal>(
+          "/api/v1/admin/finance/platform-wallet/withdraw",
+          {
+            method: "POST",
+
+            body: JSON.stringify(
+              {
+                amount:
+                  numericAmount,
+
+                destination:
+                  destination.trim()
+              }
+            )
+          }
+        );
+
+      if (
+        normalizeStatus(
+          withdrawal.status
+        ) === "paid"
+      ) {
+        setConfirmationMessage(
+          `${money(
+            withdrawal.amount,
+            withdrawal.currency
+          )} was successfully sent to ${withdrawalReceiver(
+            withdrawal
+          )}.`
+        );
+      } else if (
+        normalizeStatus(
+          withdrawal.status
+        ) === "failed"
+      ) {
+        setError(
+          withdrawal.failure_reason ||
+            withdrawal.provider_status_message ||
+            "The platform withdrawal could not be completed."
+        );
+      } else {
+        setConfirmationMessage(
+          `Platform withdrawal to ${formatPhone(
+            withdrawal.payout_destination
+          )} was submitted to ioTec for processing.`
+        );
+      }
+
+      setAmount("");
+      setDestination("");
+
+      setWithdrawals(
+        (current) => [
+          withdrawal,
+          ...current.filter(
+            (item) =>
+              item.id !==
+              withdrawal.id
+          )
+        ]
+      );
+
+      await load();
+
+      if (
+        shouldPollWithdrawal(
+          withdrawal.status
+        )
+      ) {
+        void refreshWithdrawal(
+          withdrawal.id,
+          true
+        );
+      }
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Could not request platform withdrawal."
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
   /* =======================================================
    * RENDER
    * ======================================================= */
@@ -815,6 +972,16 @@ export default function WalletPage() {
         subscriptionFees={
           subscriptionFees
         }
+        withdrawals={withdrawals}
+        amount={amount}
+        destination={destination}
+        saving={saving}
+        confirmationMessage={confirmationMessage}
+        refreshingWithdrawalId={refreshingWithdrawalId}
+        onAmountChange={setAmount}
+        onDestinationChange={setDestination}
+        onSubmitWithdrawal={submitPlatformWithdrawal}
+        onRefreshWithdrawal={refreshWithdrawal}
         error={error}
         onRefresh={load}
       />
@@ -1267,6 +1434,16 @@ function SuperadminWalletView({
   revenue,
   tokenFees,
   subscriptionFees,
+  withdrawals,
+  amount,
+  destination,
+  saving,
+  confirmationMessage,
+  refreshingWithdrawalId,
+  onAmountChange,
+  onDestinationChange,
+  onSubmitWithdrawal,
+  onRefreshWithdrawal,
   error,
   onRefresh
 }: {
@@ -1274,6 +1451,16 @@ function SuperadminWalletView({
   revenue: PlatformRevenueSummary;
   tokenFees: TokenFeeRow[];
   subscriptionFees: SubscriptionFeeRow[];
+  withdrawals: Withdrawal[];
+  amount: string;
+  destination: string;
+  saving: boolean;
+  confirmationMessage: string;
+  refreshingWithdrawalId: string | null;
+  onAmountChange: (value: string) => void;
+  onDestinationChange: (value: string) => void;
+  onSubmitWithdrawal: (event: React.FormEvent) => void;
+  onRefreshWithdrawal: (withdrawalId: string, silent?: boolean) => Promise<Withdrawal | null>;
   error: string;
   onRefresh: () => Promise<void>;
 }) {
@@ -1301,6 +1488,12 @@ function SuperadminWalletView({
       {error ? (
         <div className="panel mb-4 p-4 text-sm text-red-400">
           {error}
+        </div>
+      ) : null}
+
+      {confirmationMessage ? (
+        <div className="panel mb-4 p-4 text-sm text-accent">
+          {confirmationMessage}
         </div>
       ) : null}
 
@@ -1341,6 +1534,201 @@ function SuperadminWalletView({
           )}
           detail="Fee and subscription rows loaded"
         />
+      </section>
+
+      <section className="panel mt-5 p-5">
+        <div>
+          <h2 className="text-lg font-semibold text-ink">
+            Withdraw Platform Money
+          </h2>
+
+          <p className="mt-1 text-sm text-muted">
+            Send available NobliFi platform money to an MTN or Airtel Mobile Money account through ioTec.
+          </p>
+        </div>
+
+        <form
+          className="mt-5 grid gap-3 lg:grid-cols-[1fr_1fr_auto]"
+          onSubmit={onSubmitWithdrawal}
+        >
+          <input
+            className="field"
+            type="number"
+            inputMode="numeric"
+            min="500"
+            step="1"
+            value={amount}
+            onChange={(event) =>
+              onAmountChange(
+                event.target.value
+              )
+            }
+            placeholder="Amount in UGX"
+            required
+          />
+
+          <input
+            className="field"
+            type="tel"
+            inputMode="tel"
+            value={destination}
+            onChange={(event) =>
+              onDestinationChange(
+                event.target.value
+              )
+            }
+            placeholder="Mobile Money phone number"
+            required
+          />
+
+          <button
+            className="btn"
+            type="submit"
+            disabled={saving}
+          >
+            {saving
+              ? "Submitting..."
+              : "Withdraw"}
+          </button>
+        </form>
+
+        <div className="mt-4 rounded-md border border-amber-400/30 bg-amber-400/5 p-4">
+          <p className="text-sm font-semibold text-amber-300">
+            Confirm the phone number before sending.
+          </p>
+
+          <p className="mt-1 text-sm text-muted">
+            ioTec returns the receiver name after the payout is submitted, and that name appears in the platform withdrawal receipt.
+          </p>
+        </div>
+      </section>
+
+      <section className="mt-5">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-ink">
+              Platform Withdrawals
+            </h2>
+
+            <p className="mt-1 text-xs text-muted">
+              Track ioTec payout status and Mobile Money receiver information.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={() =>
+              void onRefresh()
+            }
+          >
+            Refresh
+          </button>
+        </div>
+
+        {withdrawals.length ? (
+          <DataTable
+            columns={[
+              "Amount",
+              "Recipient",
+              "Status",
+              "ioTec Status",
+              "Reference",
+              "Date",
+              "Action"
+            ]}
+            rows={withdrawals.map(
+              (item) => ({
+                Amount:
+                  money(
+                    item.amount,
+                    item.currency
+                  ),
+
+                Recipient: (
+                  <WithdrawalRecipientCell
+                    withdrawal={
+                      item
+                    }
+                  />
+                ),
+
+                Status: (
+                  <StatusBadge
+                    label={withdrawalStatusLabel(
+                      item
+                    )}
+                  />
+                ),
+
+                "ioTec Status": (
+                  <ProviderStatusCell
+                    withdrawal={
+                      item
+                    }
+                  />
+                ),
+
+                Reference: (
+                  <div className="max-w-[220px]">
+                    <p className="break-all text-xs text-ink">
+                      {item.merchant_reference ||
+                        item.provider_reference ||
+                        "-"}
+                    </p>
+                  </div>
+                ),
+
+                Date:
+                  formatDate(
+                    item.created_at
+                  ),
+
+                Action:
+                  shouldPollWithdrawal(
+                    item.status
+                  ) ? (
+                    <button
+                      type="button"
+                      className="btn-secondary whitespace-nowrap"
+                      disabled={
+                        refreshingWithdrawalId ===
+                        item.id
+                      }
+                      onClick={() =>
+                        void onRefreshWithdrawal(
+                          item.id
+                        )
+                      }
+                    >
+                      {refreshingWithdrawalId ===
+                      item.id
+                        ? "Checking..."
+                        : "Check Status"}
+                    </button>
+                  ) : (
+                    <span className="text-xs text-muted">
+                      {normalizeStatus(
+                        item.status
+                      ) === "paid"
+                        ? "Completed"
+                        : normalizeStatus(
+                              item.status
+                            ) ===
+                            "failed"
+                          ? "Closed"
+                          : "-"}
+                    </span>
+                  )
+              })
+            )}
+          />
+        ) : (
+          <EmptyState
+            title="No platform withdrawals"
+            description="Platform withdrawal requests will appear here after they are submitted."
+          />
+        )}
       </section>
 
       <section className="mt-5">
