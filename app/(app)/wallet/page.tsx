@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import {
   useCallback,
@@ -94,47 +94,6 @@ type Withdrawal = {
   updated_at?: string;
 };
 
-type WithdrawalRecipient = {
-  destination: string;
-
-  account_name: string;
-
-  /*
-   * true when the backend has actually obtained
-   * an account-holder name from its Mobile Money
-   * verification/provider flow.
-   */
-  known: boolean;
-
-  /*
-   * true only when the provider says the result
-   * is verified.
-   */
-  verified?: boolean;
-
-  /*
-   * Example values:
-   *
-   * iotec_live
-   * iotec
-   * mobile_money
-   * unavailable
-   */
-  source?: string;
-
-  /*
-   * Optional network/operator information.
-   */
-  network?: string;
-
-  /*
-   * Optional raw provider verification status.
-   */
-  status?: string;
-
-  message?: string;
-};
-
 type WithdrawalCodeResponse = {
   sent: boolean;
   dev_code?: string;
@@ -150,15 +109,6 @@ function withdrawalStatusEndpoint(
   id: string
 ) {
   return `/api/v1/wallet/withdrawals/${id}/status`;
-}
-
-function recipientLookupEndpoint(
-  destination: string
-) {
-  return (
-    "/api/v1/wallet/withdraw/recipient" +
-    `?destination=${encodeURIComponent(destination)}`
-  );
 }
 
 /* =========================================================
@@ -203,24 +153,6 @@ export default function WalletPage() {
   const [
     confirmationMessage,
     setConfirmationMessage
-  ] = useState("");
-
-  const [
-    recipient,
-    setRecipient
-  ] =
-    useState<WithdrawalRecipient | null>(
-      null
-    );
-
-  const [
-    recipientLoading,
-    setRecipientLoading
-  ] = useState(false);
-
-  const [
-    recipientLookupError,
-    setRecipientLookupError
   ] = useState("");
 
   const [
@@ -308,191 +240,6 @@ export default function WalletPage() {
   }, [load]);
 
   /* =======================================================
-   * RECIPIENT LOOKUP
-   * =======================================================
-   *
-   * IMPORTANT:
-   *
-   * The frontend does NOT search NobliFi's Sales database.
-   *
-   * It asks the backend:
-   *
-   * GET /api/v1/wallet/withdraw/recipient
-   *
-   * The backend is responsible for performing the actual
-   * Mobile Money/provider lookup and returning:
-   *
-   * {
-   *   destination: "256774831231",
-   *   account_name: "REGISTERED NAME",
-   *   known: true,
-   *   verified: true,
-   *   source: "iotec_live"
-   * }
-   * ======================================================= */
-
-  const lookupRecipient =
-    useCallback(
-      async (
-        phone: string,
-        showError = false
-      ): Promise<WithdrawalRecipient | null> => {
-        const trimmed =
-          phone.trim();
-
-        const digits =
-          trimmed.replace(
-            /\D/g,
-            ""
-          );
-
-        if (
-          digits.length < 9
-        ) {
-          setRecipient(null);
-
-          setRecipientLookupError(
-            ""
-          );
-
-          return null;
-        }
-
-        setRecipientLoading(
-          true
-        );
-
-        setRecipientLookupError(
-          ""
-        );
-
-        try {
-          const result =
-            await apiFetch<WithdrawalRecipient>(
-              recipientLookupEndpoint(
-                trimmed
-              )
-            );
-
-          const normalized: WithdrawalRecipient =
-            {
-              destination:
-                result.destination ||
-                trimmed,
-
-              account_name:
-                String(
-                  result.account_name ||
-                    ""
-                ).trim(),
-
-              known:
-                Boolean(
-                  result.known &&
-                    String(
-                      result.account_name ||
-                        ""
-                    ).trim()
-                ),
-
-              verified:
-                Boolean(
-                  result.verified
-                ),
-
-              source:
-                result.source,
-
-              network:
-                result.network,
-
-              status:
-                result.status,
-
-              message:
-                result.message
-            };
-
-          setRecipient(
-            normalized
-          );
-
-          return normalized;
-        } catch (err) {
-          const message =
-            err instanceof Error
-              ? err.message
-              : "Could not verify the Mobile Money recipient.";
-
-          setRecipient(null);
-
-          setRecipientLookupError(
-            message
-          );
-
-          if (showError) {
-            setError(message);
-          }
-
-          return null;
-        } finally {
-          setRecipientLoading(
-            false
-          );
-        }
-      },
-      []
-    );
-
-  /*
-   * Automatically check the number shortly after
-   * the merchant stops typing.
-   */
-  useEffect(() => {
-    const digits =
-      destination.replace(
-        /\D/g,
-        ""
-      );
-
-    setRecipient(null);
-
-    setRecipientLookupError(
-      ""
-    );
-
-    if (
-      digits.length < 9
-    ) {
-      setRecipientLoading(
-        false
-      );
-
-      return;
-    }
-
-    const timer =
-      window.setTimeout(
-        () => {
-          void lookupRecipient(
-            destination,
-            false
-          );
-        },
-        550
-      );
-
-    return () => {
-      window.clearTimeout(
-        timer
-      );
-    };
-  }, [
-    destination,
-    lookupRecipient
-  ]);
-
-  /* =======================================================
    * REFRESH WITHDRAWAL STATUS
    * ======================================================= */
 
@@ -538,6 +285,22 @@ export default function WalletPage() {
               latest.status
             )
           ) {
+            if (
+              !silent &&
+              normalizeStatus(
+                latest.status
+              ) === "paid"
+            ) {
+              setConfirmationMessage(
+                `${money(
+                  latest.amount,
+                  latest.currency
+                )} was successfully sent to ${withdrawalReceiver(
+                  latest
+                )}.`
+              );
+            }
+
             const [
               walletData,
               transactionData
@@ -693,55 +456,6 @@ export default function WalletPage() {
     setSendingCode(true);
 
     try {
-      /*
-       * CRITICAL:
-       *
-       * Check the account name AGAIN when Send Code
-       * is pressed.
-       *
-       * Do not rely only on the earlier debounced lookup.
-       */
-      const checkedRecipient =
-        await lookupRecipient(
-          destination,
-          true
-        );
-
-      if (
-        !checkedRecipient
-      ) {
-        throw new Error(
-          "Could not verify this Mobile Money number. Check the number and try again."
-        );
-      }
-
-      if (
-        !checkedRecipient.known ||
-        !checkedRecipient.account_name
-      ) {
-        throw new Error(
-          checkedRecipient.message ||
-            "The Mobile Money account name could not be verified. Check the phone number before continuing."
-        );
-      }
-
-      /*
-       * Require provider verification if the backend
-       * explicitly says verified=false.
-       *
-       * If your backend intentionally omits the verified
-       * field, known+account_name remains sufficient.
-       */
-      if (
-        checkedRecipient.verified ===
-        false
-      ) {
-        throw new Error(
-          checkedRecipient.message ||
-            "The Mobile Money account name has not been verified by the provider."
-        );
-      }
-
       const response =
         await apiFetch<WithdrawalCodeResponse>(
           "/api/v1/wallet/withdraw/code",
@@ -754,7 +468,7 @@ export default function WalletPage() {
                   numericAmount,
 
                 destination:
-                  checkedRecipient.destination
+                  destination.trim()
               }
             )
           }
@@ -777,7 +491,7 @@ export default function WalletPage() {
       setError(
         err instanceof Error
           ? err.message
-          : "Could not verify recipient or send withdrawal code."
+          : "Could not send withdrawal code."
       );
     } finally {
       setSendingCode(
@@ -834,28 +548,6 @@ export default function WalletPage() {
       return;
     }
 
-    if (
-      !recipient?.known ||
-      !recipient.account_name
-    ) {
-      setError(
-        "Verify the Mobile Money recipient before confirming this withdrawal."
-      );
-
-      return;
-    }
-
-    if (
-      recipient.verified ===
-      false
-    ) {
-      setError(
-        "The recipient account name has not been verified."
-      );
-
-      return;
-    }
-
     if (!codeRequested) {
       setError(
         "Request a confirmation code first."
@@ -886,12 +578,7 @@ export default function WalletPage() {
                 amount:
                   numericAmount,
 
-                /*
-                 * Use provider-normalized destination
-                 * when available.
-                 */
                 destination:
-                  recipient.destination ||
                   destination.trim(),
 
                 code:
@@ -909,15 +596,16 @@ export default function WalletPage() {
           withdrawal.status
         ) === "paid"
       ) {
+        const receiver =
+          withdrawalReceiver(
+            withdrawal
+          );
+
         setConfirmationMessage(
           `${money(
             withdrawal.amount,
             withdrawal.currency
-          )} was successfully sent to ${
-            withdrawal.payout_account_name ||
-            recipient.account_name ||
-            withdrawal.payout_destination
-          }.`
+          )} was successfully sent to ${receiver}.`
         );
       } else if (
         normalizeStatus(
@@ -930,10 +618,6 @@ export default function WalletPage() {
             "The withdrawal could not be completed."
         );
       } else {
-        const accountName =
-          withdrawal.payout_account_name ||
-          recipient.account_name;
-
         const providerText =
           withdrawal.provider_status
             ? ` Provider status: ${label(
@@ -942,7 +626,9 @@ export default function WalletPage() {
             : "";
 
         setConfirmationMessage(
-          `Withdrawal to ${accountName} was submitted for processing.${providerText}`
+          `Withdrawal to ${formatPhone(
+            withdrawal.payout_destination
+          )} was submitted for processing.${providerText}`
         );
       }
 
@@ -952,12 +638,6 @@ export default function WalletPage() {
 
       setCodeRequested(
         false
-      );
-
-      setRecipient(null);
-
-      setRecipientLookupError(
-        ""
       );
 
       setWithdrawals(
@@ -1139,9 +819,6 @@ export default function WalletPage() {
                 ""
               );
 
-              setRecipientLookupError(
-                ""
-              );
             }}
             placeholder="Mobile Money phone number"
             required
@@ -1152,128 +829,29 @@ export default function WalletPage() {
             type="submit"
             disabled={
               sendingCode ||
-              saving ||
-              recipientLoading
+              saving
             }
           >
             {sendingCode
-              ? "Verifying..."
-              : recipientLoading
-                ? "Checking..."
-                : "Send Code"}
+              ? "Sending..."
+              : "Send Code"}
           </button>
         </form>
 
-        {/* =================================================
-         * RECIPIENT LOOKUP
-         * ================================================= */}
+        <div className="mt-4 rounded-md border border-amber-400/30 bg-amber-400/5 p-4">
+          <p className="text-sm font-semibold text-amber-300">
+            Confirm the phone number before sending.
+          </p>
 
-        {recipientLoading ? (
-          <div className="mt-4 rounded-md border border-sky-400/30 bg-sky-400/5 p-4">
-            <div className="flex items-center gap-3">
-              <div className="h-4 w-4 animate-spin rounded-full border-2 border-sky-300 border-t-transparent" />
-
-              <div>
-                <p className="text-sm font-semibold text-ink">
-                  Checking Mobile Money recipient...
-                </p>
-
-                <p className="mt-1 text-xs text-muted">
-                  Looking up the registered account name for{" "}
-                  {formatPhone(
-                    destination
-                  )}
-                  .
-                </p>
-              </div>
-            </div>
-          </div>
-        ) : null}
-
-        {!recipientLoading &&
-        recipient?.known &&
-        recipient.account_name ? (
-          <div className="mt-4 rounded-md border border-accent/30 bg-emerald-500/5 p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
-                  Mobile Money Recipient
-                </p>
-
-                <p className="mt-2 text-xl font-semibold text-ink">
-                  {
-                    recipient.account_name
-                  }
-                </p>
-
-                <p className="mt-1 text-sm text-muted">
-                  {formatPhone(
-                    recipient.destination
-                  )}
-                </p>
-
-                {recipient.network ? (
-                  <p className="mt-1 text-xs text-muted">
-                    {
-                      recipient.network
-                    }
-                  </p>
-                ) : null}
-              </div>
-
-              {recipient.verified !==
-              false ? (
-                <div className="rounded-full border border-accent/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-accent">
-                  ✓ Verified
-                </div>
-              ) : null}
-            </div>
-
-            <p className="mt-3 text-xs text-accent">
-              Registered Mobile Money
-              account name returned by
-              the payment provider.
-            </p>
-          </div>
-        ) : null}
-
-        {!recipientLoading &&
-        recipient &&
-        !recipient.known ? (
-          <div className="mt-4 rounded-md border border-amber-400/30 bg-amber-400/5 p-4">
-            <p className="text-sm font-semibold text-amber-300">
-              Mobile Money recipient
-              could not be verified
-            </p>
-
-            <p className="mt-1 text-sm text-muted">
-              {recipient.message ||
-                "The payment provider did not return a registered account name for this number."}
-            </p>
-
-            <p className="mt-2 text-xs text-muted">
-              Check the phone number and
-              try again before requesting
-              a withdrawal code.
-            </p>
-          </div>
-        ) : null}
-
-        {!recipientLoading &&
-        !recipient &&
-        recipientLookupError ? (
-          <div className="mt-4 rounded-md border border-red-400/30 bg-red-400/5 p-4">
-            <p className="text-sm font-semibold text-red-300">
-              Recipient lookup failed
-            </p>
-
-            <p className="mt-1 text-xs text-muted">
-              {
-                recipientLookupError
-              }
-            </p>
-          </div>
-        ) : null}
+          <p className="mt-1 text-sm text-muted">
+            NobliFi will send money to the
+            Mobile Money number you enter.
+            ioTec returns the receiver name
+            after the payout is submitted,
+            and that name appears on the
+            withdrawal receipt.
+          </p>
+        </div>
 
         {/* =================================================
          * CONFIRMATION CODE
@@ -1307,9 +885,7 @@ export default function WalletPage() {
             type="submit"
             disabled={
               saving ||
-              !codeRequested ||
-              !recipient?.known ||
-              !recipient.account_name
+              !codeRequested
             }
           >
             {saving
@@ -1320,15 +896,16 @@ export default function WalletPage() {
 
         <div className="mt-4 rounded-md border border-line bg-soft/40 p-4">
           <p className="text-xs leading-5 text-muted">
-            NobliFi verifies the Mobile
-            Money recipient before sending
-            the withdrawal confirmation
-            code. After confirmation, funds
-            are reserved while ioTec
+            Always confirm the phone
+            number before sending. After
+            confirmation, funds are
+            reserved while ioTec
             processes the payout. The
             withdrawal is only marked Paid
             when the provider confirms the
-            transfer succeeded.
+            transfer succeeded, and the
+            receiver name is shown once
+            ioTec returns it.
           </p>
         </div>
       </section>
@@ -1578,7 +1155,7 @@ function WithdrawalRecipientCell({
 
       {verified ? (
         <p className="mt-1 text-xs font-medium text-accent">
-          ✓ ioTec verified
+          âœ“ ioTec verified
         </p>
       ) : withdrawal.payee_name_status ? (
         <p className="mt-1 text-xs text-muted">
@@ -1772,6 +1349,17 @@ function isVerifiedPayeeNameStatus(
   return (
     normalized === "fetched" ||
     normalized === "matched"
+  );
+}
+
+function withdrawalReceiver(
+  withdrawal: Withdrawal
+) {
+  return (
+    withdrawal.payout_account_name ||
+    formatPhone(
+      withdrawal.payout_destination
+    )
   );
 }
 
