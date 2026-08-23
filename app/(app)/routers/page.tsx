@@ -20,6 +20,7 @@ type RouterRow = {
   telemetry_last_error?: string;
   health_status?: string;
   uptime?: string;
+  uptime_seconds?: number | null;
   cpu_load?: string;
   active_hotspot_users?: number;
 };
@@ -101,7 +102,9 @@ export default function RoutersPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {routers.map((router) => (
+                {routers.map((router) => {
+                  const isOnline = (router.health_status ?? router.status).toLowerCase() === "online";
+                  return (
                   <tr key={router.id} className="hover:bg-soft">
                     <td className="px-4 py-3 font-medium text-ink">
                       <Link href={`/routers/${router.id}`}>
@@ -116,16 +119,17 @@ export default function RoutersPage() {
                     <td className="px-4 py-3">
                       <StatusBadge label={titleCase(router.health_status ?? router.status)} />
                     </td>
-                    <td className="px-4 py-3 text-muted">{formatCpu(router.cpu_load)}</td>
-                    <td className="px-4 py-3 text-muted">{formatUptime(router.uptime)}</td>
-                    <td className="px-4 py-3 text-muted">{router.active_hotspot_users ?? "--"}</td>
+                    <td className="px-4 py-3 text-muted">{isOnline ? formatCpu(router.cpu_load) : "--"}</td>
+                    <td className="px-4 py-3 text-muted">{isOnline ? formatUptime(router.uptime_seconds, router.uptime, router.telemetry_updated_at) : formatOfflineUptime(router.telemetry_updated_at)}</td>
+                    <td className="px-4 py-3 text-muted">{isOnline ? router.active_hotspot_users ?? "--" : "--"}</td>
                     <td className="px-4 py-3 text-muted">
                       <Link href={`/routers/${router.id}`} className="font-semibold text-brand">
                         Open
                       </Link>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -152,10 +156,28 @@ function formatCpu(value?: string) {
   return trimmed.endsWith("%") ? trimmed : `${trimmed}%`;
 }
 
-function formatUptime(value?: string) {
+function formatUptime(seconds?: number | null, fallback?: string, telemetryUpdatedAt?: string) {
+  if (typeof seconds === "number" && Number.isFinite(seconds) && seconds >= 0) {
+    return formatDuration(seconds);
+  }
+  const value = fallback;
   const trimmed = value?.trim();
   if (!trimmed) {
-    return "Telemetry pending";
+    return telemetryUpdatedAt ? "--" : "Telemetry pending";
   }
   return trimmed.replace(/(\d+)([wdhms])/g, "$1$2 ").trim();
+}
+
+function formatOfflineUptime(telemetryUpdatedAt?: string) {
+  return telemetryUpdatedAt ? "--" : "Telemetry pending";
+}
+
+function formatDuration(totalSeconds: number) {
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  if (minutes > 0) return `${minutes}m`;
+  return `${Math.floor(totalSeconds)}s`;
 }

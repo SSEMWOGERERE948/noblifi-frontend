@@ -25,13 +25,13 @@ type RouterDetail = {
   active_hotspot_users?: number;
   telemetry_updated_at?: string;
   telemetry_last_error?: string;
+  uptime_seconds?: number | null;
   wireguard_status?: string;
+  wireguard_tunnel_ip?: string;
   wire_guard_peer_status?: string;
   wire_guard_last_handshake_at?: string;
   wire_guard_last_error?: string;
   remote_access_status?: string;
-  remote_winbox_port?: number;
-  remote_access_expires_at?: string;
   claim_token: string;
   config_status?: string;
   interfaces?: Array<{ name: string; type?: string; mac_address?: string; running: boolean; disabled: boolean }>;
@@ -52,9 +52,9 @@ export default function RouterDetailPage({ params }: { params: Promise<{ id: str
   const [revenue, setRevenue] = useState<RouterRevenue | null>(null);
   const [error, setError] = useState("");
   const [winboxMessage, setWinboxMessage] = useState("");
-  const [deleteChallenge, setDeleteChallenge] = useState<{ challenge_id: string; expected_confirmation: string; expires_at: string } | null>(null);
-  const [confirmationOne, setConfirmationOne] = useState("");
-  const [confirmationTwo, setConfirmationTwo] = useState("");
+  const [deleteMessage, setDeleteMessage] = useState("");
+  const [deleteChallenge, setDeleteChallenge] = useState<{ challenge_id: string; expected_confirmation: string; router_name: string; expires_at: string } | null>(null);
+  const [routerNameConfirmation, setRouterNameConfirmation] = useState("");
 
   function load() {
     Promise.all([
@@ -94,16 +94,17 @@ export default function RouterDetailPage({ params }: { params: Promise<{ id: str
   const interfaces = router.interfaces ?? [];
   const isLinked = Boolean(router.serial_number || router.model || router.routeros_version || interfaces.length || router.status === "online" || router.status === "linked" || router.status === "provisioned");
   const canEnableWinbox = ["online", "recovering", "degraded"].includes((router.health_status ?? "").toLowerCase());
-  const winboxHost = typeof window !== "undefined" ? window.location.hostname : "access.noblifi.com";
-  const winboxAddress = router.remote_winbox_port ? `${winboxHost}:${router.remote_winbox_port}` : "";
+  const isOnline = (router.health_status ?? router.status).toLowerCase() === "online";
+  const winboxHost = hostOnly(router.wireguard_tunnel_ip);
+  const winboxAddress = router.remote_access_status === "active" && winboxHost ? `${winboxHost}:8291` : "";
 
-  async function enableWinbox(duration: number) {
+  async function enableWinbox() {
     setWinboxMessage("");
-    const response = await apiFetch<{ host: string; port: number; expires_at: string; status: string }>(`/api/v1/routers/${id}/remote-access/winbox`, {
+    const response = await apiFetch<{ host: string; port: number; vpn_required: boolean; status: string }>(`/api/v1/routers/${id}/remote-access/winbox`, {
       method: "POST",
-      body: JSON.stringify({ duration_minutes: duration })
+      body: JSON.stringify({})
     });
-    setWinboxMessage(`WinBox access ${response.status}. Connect to ${response.host}:${response.port}.`);
+    setWinboxMessage(`WinBox access ${response.status}. Connect through WireGuard to ${response.host}:${response.port}.`);
     load();
   }
 
@@ -114,27 +115,35 @@ export default function RouterDetailPage({ params }: { params: Promise<{ id: str
   }
 
   async function requestDeleteChallenge() {
-    const response = await apiFetch<{ challenge_id: string; expected_confirmation: string; expires_at: string }>(`/api/v1/routers/${id}/delete-challenge`, {
-      method: "POST"
-    });
-    setDeleteChallenge(response);
-    setConfirmationOne("");
-    setConfirmationTwo("");
+    setDeleteMessage("");
+    try {
+      const response = await apiFetch<{ challenge_id: string; expected_confirmation: string; router_name: string; expires_at: string }>(`/api/v1/routers/${id}/delete-challenge`, {
+        method: "POST"
+      });
+      setDeleteChallenge(response);
+      setRouterNameConfirmation("");
+    } catch (err) {
+      setDeleteMessage(err instanceof Error ? err.message : "Could not prepare router deletion.");
+    }
   }
 
   async function deleteRouter() {
     if (!deleteChallenge) {
       return;
     }
-    await apiFetch<void>(`/api/v1/routers/${id}`, {
-      method: "DELETE",
-      body: JSON.stringify({
-        challenge_id: deleteChallenge.challenge_id,
-        confirmation_one: confirmationOne,
-        confirmation_two: confirmationTwo
-      })
-    });
-    window.location.href = "/routers";
+    setDeleteMessage("");
+    try {
+      await apiFetch<void>(`/api/v1/routers/${id}`, {
+        method: "DELETE",
+        body: JSON.stringify({
+          challenge_id: deleteChallenge.challenge_id,
+          router_name: routerNameConfirmation
+        })
+      });
+      window.location.href = "/routers";
+    } catch (err) {
+      setDeleteMessage(err instanceof Error ? err.message : "Could not delete router.");
+    }
   }
 
   return (
@@ -187,10 +196,10 @@ export default function RouterDetailPage({ params }: { params: Promise<{ id: str
             {[
               ["Health", titleCase(router.health_status ?? router.status)],
               ["Reason", label(router.health_reason ?? "-")],
-              ["CPU Load", formatCpu(router.cpu_load)],
-              ["Uptime", formatUptime(router.uptime)],
-              ["Active HotSpot Users", String(router.active_hotspot_users ?? "--")],
-              ["Memory", formatMemory(router.free_memory, router.total_memory)],
+              ["CPU Load", isOnline ? formatCpu(router.cpu_load) : "--"],
+              ["Uptime", isOnline ? formatUptime(router.uptime_seconds, router.uptime, router.telemetry_updated_at) : formatOfflineUptime(router.telemetry_updated_at)],
+              ["Active HotSpot Users", isOnline ? String(router.active_hotspot_users ?? "--") : "--"],
+              ["Memory", isOnline ? formatMemory(router.free_memory, router.total_memory) : "--"],
               ["Last Telemetry", formatDateTime(router.telemetry_updated_at)],
               ["Telemetry Error", router.telemetry_last_error ?? "-"],
               ["WireGuard", router.wireguard_status || router.wire_guard_peer_status || "-"],
@@ -211,7 +220,8 @@ export default function RouterDetailPage({ params }: { params: Promise<{ id: str
             {[
               ["Status", titleCase(router.remote_access_status ?? "disabled")],
               ["Connect To", winboxAddress || "-"],
-              ["Expires", formatDateTime(router.remote_access_expires_at)]
+              ["Port", "8291"],
+              ["VPN", "Required"]
             ].map(([labelText, value]) => (
               <div key={labelText} className="flex justify-between gap-4 border-b border-line pb-2">
                 <dt className="text-muted">{labelText}</dt>
@@ -220,13 +230,11 @@ export default function RouterDetailPage({ params }: { params: Promise<{ id: str
             ))}
           </dl>
           <div className="mt-4 flex flex-wrap gap-2">
-            {[15, 30, 60].map((duration) => (
-              <button key={duration} className="btn-secondary" type="button" disabled={!canEnableWinbox} onClick={() => enableWinbox(duration)}>
-                Enable {duration}m
-              </button>
-            ))}
+            <button className="btn-secondary" type="button" disabled={!canEnableWinbox} onClick={enableWinbox}>
+              Enable WinBox Access
+            </button>
             <button className="btn-secondary" type="button" onClick={disableWinbox}>
-              Disable Access
+              Revoke Access
             </button>
             {winboxAddress ? (
               <button className="btn" type="button" onClick={() => navigator.clipboard.writeText(winboxAddress)}>
@@ -291,14 +299,20 @@ export default function RouterDetailPage({ params }: { params: Promise<{ id: str
           </button>
         ) : (
           <div className="mt-4 grid gap-3">
-            <pre className="overflow-x-auto rounded-md border border-line bg-soft p-3 text-sm text-ink">{deleteChallenge.expected_confirmation}</pre>
-            <textarea className="field min-h-24" value={confirmationOne} onChange={(event) => setConfirmationOne(event.target.value)} placeholder="Paste confirmation once" />
-            <textarea className="field min-h-24" value={confirmationTwo} onChange={(event) => setConfirmationTwo(event.target.value)} placeholder="Paste confirmation again" />
-            <button className="btn" type="button" onClick={deleteRouter}>
+            <p className="text-sm text-muted">Copy this router name, then paste it once to confirm deletion.</p>
+            <div className="flex flex-wrap items-center gap-2 rounded-md border border-line bg-soft p-3">
+              <code className="text-sm font-semibold text-ink">{deleteChallenge.expected_confirmation}</code>
+              <button className="btn-secondary" type="button" onClick={() => navigator.clipboard.writeText(deleteChallenge.expected_confirmation)}>
+                Copy
+              </button>
+            </div>
+            <input className="field" value={routerNameConfirmation} onChange={(event) => setRouterNameConfirmation(event.target.value)} placeholder="Paste router name" />
+            <button className="btn" type="button" onClick={deleteRouter} disabled={routerNameConfirmation.trim() !== deleteChallenge.expected_confirmation}>
               Confirm Delete Router
             </button>
           </div>
         )}
+        {deleteMessage ? <p className="mt-3 text-sm text-red-300">{deleteMessage}</p> : null}
       </section>
       <section className="mt-6">
         <h2 className="mb-3 text-lg font-semibold text-ink">Registration Script</h2>
@@ -324,12 +338,36 @@ function formatCpu(value?: string) {
   return trimmed.endsWith("%") ? trimmed : `${trimmed}%`;
 }
 
-function formatUptime(value?: string) {
+function formatUptime(seconds?: number | null, fallback?: string, telemetryUpdatedAt?: string) {
+  if (typeof seconds === "number" && Number.isFinite(seconds) && seconds >= 0) {
+    return formatDuration(seconds);
+  }
+  const value = fallback;
   const trimmed = value?.trim();
   if (!trimmed) {
-    return "Telemetry pending";
+    return telemetryUpdatedAt ? "--" : "Telemetry pending";
   }
   return trimmed.replace(/(\d+)([wdhms])/g, "$1$2 ").trim();
+}
+
+function formatOfflineUptime(telemetryUpdatedAt?: string) {
+  return telemetryUpdatedAt ? "--" : "Telemetry pending";
+}
+
+function formatDuration(totalSeconds: number) {
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  if (minutes > 0) return `${minutes}m`;
+  return `${Math.floor(totalSeconds)}s`;
+}
+
+function hostOnly(value?: string) {
+  const trimmed = value?.trim();
+  if (!trimmed) return "";
+  return trimmed.split("/")[0];
 }
 
 function formatMemory(free?: string, total?: string) {

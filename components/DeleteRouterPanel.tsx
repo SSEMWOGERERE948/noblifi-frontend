@@ -2,59 +2,72 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { API_BASE_URL } from "@/lib/api";
-import { getToken } from "@/lib/auth";
+import { apiFetch } from "@/lib/api";
 
 export function DeleteRouterPanel({ routerId, routerName }: { routerId: string; routerName: string }) {
   const nav = useRouter();
+  const [challenge, setChallenge] = useState<{ challenge_id: string; expected_confirmation: string; expires_at: string } | null>(null);
   const [typedName, setTypedName] = useState("");
-  const [code, setCode] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
 
-  async function requestCode() {
+  async function requestChallenge() {
     setBusy(true);
     setMessage("");
-    const response = await fetch(`${API_BASE_URL}/api/v1/auth/confirmation-codes`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${getToken() || ""}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "delete_router" })
-    });
-    const body = await response.json().catch(() => null);
-    setMessage(body?.dev_code ? `Confirmation code: ${body.dev_code}` : body?.message || "Confirmation code requested.");
-    setBusy(false);
+    try {
+      const response = await apiFetch<{ challenge_id: string; expected_confirmation: string; expires_at: string }>(`/api/v1/routers/${routerId}/delete-challenge`, {
+        method: "POST"
+      });
+      setChallenge(response);
+      setTypedName("");
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Could not prepare router deletion.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function deleteRouter() {
-    setBusy(true);
-    setMessage("");
-    const response = await fetch(`${API_BASE_URL}/api/v1/routers/${routerId}`, {
-      method: "DELETE",
-      headers: { Authorization: `Bearer ${getToken() || ""}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ typed_name: typedName, code })
-    });
-    if (!response.ok) {
-      setMessage(await response.text());
-      setBusy(false);
+    if (!challenge) {
       return;
     }
-    nav.push("/routers");
+    setBusy(true);
+    setMessage("");
+    try {
+      await apiFetch<void>(`/api/v1/routers/${routerId}`, {
+        method: "DELETE",
+        body: JSON.stringify({ challenge_id: challenge.challenge_id, router_name: typedName })
+      });
+      nav.push("/routers");
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Could not delete router.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
     <div className="panel mt-6 p-5">
       <h2 className="text-lg font-semibold text-ink">Delete Router</h2>
-      <p className="mt-2 text-sm text-muted">Request a confirmation code, then type the router name exactly: {routerName}</p>
-      <div className="mt-4 grid gap-3 md:grid-cols-3">
-        <input className="field" value={typedName} onChange={(event) => setTypedName(event.target.value)} placeholder={routerName} />
-        <input className="field" value={code} onChange={(event) => setCode(event.target.value)} placeholder="Email code" />
-        <button className="btn-secondary" type="button" onClick={requestCode} disabled={busy}>
-          Get code
+      <p className="mt-2 text-sm text-muted">Copy the router name, then paste it once to confirm deletion.</p>
+      {!challenge ? (
+        <button className="btn-secondary mt-4" type="button" onClick={requestChallenge} disabled={busy}>
+          Delete Router
         </button>
-      </div>
-      <button className="mt-3 rounded-md bg-red-500 px-4 py-2 text-sm font-semibold text-white" type="button" onClick={deleteRouter} disabled={busy || typedName !== routerName || !code}>
-        Delete router
-      </button>
+      ) : (
+        <div className="mt-4 grid gap-3">
+          <div className="flex flex-wrap items-center gap-2 rounded-md border border-line bg-soft p-3">
+            <code className="text-sm font-semibold text-ink">{challenge.expected_confirmation || routerName}</code>
+            <button className="btn-secondary" type="button" onClick={() => navigator.clipboard.writeText(challenge.expected_confirmation || routerName)}>
+              Copy
+            </button>
+          </div>
+          <input className="field" value={typedName} onChange={(event) => setTypedName(event.target.value)} placeholder="Paste router name" />
+          <button className="mt-3 rounded-md bg-red-500 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50" type="button" onClick={deleteRouter} disabled={busy || typedName.trim() !== (challenge.expected_confirmation || routerName)}>
+            Delete router
+          </button>
+        </div>
+      )}
       {message ? <p className="mt-3 text-sm text-muted">{message}</p> : null}
     </div>
   );
