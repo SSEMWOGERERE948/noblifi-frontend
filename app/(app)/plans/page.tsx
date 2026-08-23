@@ -18,6 +18,7 @@ import {
 type DurationUnit =
   | "minutes"
   | "hours"
+  | "days"
   | "weeks"
   | "months";
 
@@ -671,6 +672,10 @@ export default function PlansPage() {
 
               <option value="hours">
                 Hours
+              </option>
+
+              <option value="days">
+                Days
               </option>
 
               <option value="weeks">
