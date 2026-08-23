@@ -514,6 +514,8 @@ export default function VouchersPage() {
 
   const [downloadingPdf, setDownloadingPdf] =
     useState(false);
+  const [deletingVoucherId, setDeletingVoucherId] =
+    useState<string | null>(null);
   const [voucherSearch, setVoucherSearch] =
     useState("");
   const [voucherStatusFilter, setVoucherStatusFilter] =
@@ -822,6 +824,48 @@ export default function VouchersPage() {
       );
     } finally {
       setDownloadingPdf(false);
+    }
+  }
+
+  async function deleteVoucher(voucher: Voucher) {
+    const confirmed = window.confirm(
+      `Delete voucher ${voucher.code}? This removes it from your voucher list.`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setMessage("");
+    setDeletingVoucherId(voucher.id);
+
+    try {
+      await apiFetch<void>(
+        `/api/v1/vouchers/${voucher.id}`,
+        {
+          method: "DELETE"
+        }
+      );
+
+      setVouchers((current) =>
+        current.filter((item) => item.id !== voucher.id)
+      );
+
+      setSelectedIds((current) => {
+        const next = new Set(current);
+        next.delete(voucher.id);
+        return next;
+      });
+
+      setMessage(`Voucher ${voucher.code} was deleted.`);
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Could not delete the voucher."
+      );
+    } finally {
+      setDeletingVoucherId(null);
     }
   }
 
@@ -1192,7 +1236,8 @@ export default function VouchersPage() {
               "First Login",
               "Expires On",
               "Use Case",
-              "Created On"
+              "Created On",
+              "Actions"
             ]}
             rows={pagedVouchers.map((voucher) => {
               const plan = plansById.get(
@@ -1232,7 +1277,19 @@ export default function VouchersPage() {
                 "First Login": formatOptionalDate(voucher.first_login),
                 "Expires On": formatOptionalDate(voucher.expires_at),
                 "Use Case": voucher.use_case || (voucher.channel === "online" ? "Mobile Money Sale" : "Physical Voucher"),
-                "Created On": formatOptionalDate(voucher.created_at)
+                "Created On": formatOptionalDate(voucher.created_at),
+                Actions: (
+                  <button
+                    className="btn-secondary px-3 py-1.5 text-red-300"
+                    type="button"
+                    disabled={deletingVoucherId === voucher.id}
+                    onClick={() => deleteVoucher(voucher)}
+                  >
+                    {deletingVoucherId === voucher.id
+                      ? "Deleting..."
+                      : "Delete"}
+                  </button>
+                )
               };
             })}
           />

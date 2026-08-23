@@ -72,6 +72,22 @@ const initialForm: PlanForm = {
   data_limit_mb: "",
 };
 
+function planToForm(plan: Plan): PlanForm {
+  return {
+    name: plan.name ?? "",
+    price: String(plan.price ?? 0),
+    duration_value: String(plan.duration_value || 1),
+    duration_unit: plan.duration_unit || "hours",
+    upload_speed: plan.upload_speed ?? "",
+    download_speed: plan.download_speed ?? "",
+    max_devices: String(plan.max_devices || 1),
+    data_limit_mb:
+      plan.data_limit_mb == null
+        ? ""
+        : String(plan.data_limit_mb),
+  };
+}
+
 function formatDuration(
   plan: Pick<
     Plan,
@@ -161,6 +177,9 @@ export default function PlansPage() {
     useState<PlanForm>(
       initialForm
     );
+
+  const [editingPlanId, setEditingPlanId] =
+    useState<string | null>(null);
 
   useEffect(() => {
     loadPlans();
@@ -285,9 +304,7 @@ export default function PlansPage() {
       return;
     }
 
-    let dataLimitMB:
-      | number
-      | null = null;
+    let dataLimitMB = 0;
 
     if (
       form.data_limit_mb
@@ -318,11 +335,41 @@ export default function PlansPage() {
     setSubmitting(true);
 
     try {
+      const payload = {
+        name:
+          form.name.trim(),
+
+        price,
+
+        duration_value:
+          durationValue,
+
+        duration_unit:
+          form.duration_unit,
+
+        upload_speed:
+          form.upload_speed.trim(),
+
+        download_speed:
+          form.download_speed.trim(),
+
+        max_devices:
+          maxDevices,
+
+        data_limit_mb:
+          dataLimitMB,
+
+        is_active:
+          true,
+      };
+
       const response =
         await fetch(
-          `${API_BASE_URL}/api/v1/plans`,
+          `${API_BASE_URL}/api/v1/plans${
+            editingPlanId ? `/${editingPlanId}` : ""
+          }`,
           {
-            method: "POST",
+            method: editingPlanId ? "PATCH" : "POST",
 
             headers: {
               "Content-Type":
@@ -343,42 +390,7 @@ export default function PlansPage() {
              * authentication and wildcard CORS.
              */
 
-            body:
-              JSON.stringify({
-                name:
-                  form.name.trim(),
-
-                price,
-
-                duration_value:
-                  durationValue,
-
-                duration_unit:
-                  form.duration_unit,
-
-                /*
-                 * Do NOT calculate duration_minutes
-                 * in the browser anymore.
-                 *
-                 * The Go backend calculates the
-                 * canonical value.
-                 */
-
-                upload_speed:
-                  form.upload_speed.trim(),
-
-                download_speed:
-                  form.download_speed.trim(),
-
-                max_devices:
-                  maxDevices,
-
-                data_limit_mb:
-                  dataLimitMB,
-
-                is_active:
-                  true,
-              }),
+            body: JSON.stringify(payload),
           }
         );
 
@@ -422,40 +434,29 @@ export default function PlansPage() {
         throw new Error(
           body?.error ||
             body?.message ||
-            `Could not create plan. Server returned ${response.status}.`
+            `Could not save plan. Server returned ${response.status}.`
         );
       }
 
-      const created =
+      const saved =
         body as Plan;
 
-      setPlans(
-        (current) => [
-          created,
-          ...current,
-        ]
+      setPlans((current) =>
+        editingPlanId
+          ? current.map((plan) =>
+              plan.id === saved.id ? saved : plan
+            )
+          : [saved, ...current]
       );
 
       setMessage(
-        `${created.name} was created successfully.`
+        `${saved.name} was ${
+          editingPlanId ? "updated" : "created"
+        } successfully.`
       );
 
-      setForm(
-        (current) => ({
-          ...current,
-
-          name: "",
-
-          duration_value:
-            "1",
-
-          duration_unit:
-            "hours",
-
-          data_limit_mb:
-            "",
-        })
-      );
+      setEditingPlanId(null);
+      setForm(initialForm);
     } catch (err) {
       console.error(
         "Plan creation error:",
@@ -465,10 +466,63 @@ export default function PlansPage() {
       setError(
         err instanceof Error
           ? err.message
-          : "Could not create plan."
+          : "Could not save plan."
       );
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  function startEdit(plan: Plan) {
+    setMessage("");
+    setError("");
+    setEditingPlanId(plan.id);
+    setForm(planToForm(plan));
+  }
+
+  function cancelEdit() {
+    setEditingPlanId(null);
+    setForm(initialForm);
+    setMessage("");
+    setError("");
+  }
+
+  async function deletePlan(plan: Plan) {
+    const confirmed = window.confirm(
+      `Delete plan "${plan.name}"? Existing sales history is preserved, but the plan will be removed from your active list.`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setMessage("");
+    setError("");
+
+    try {
+      await apiFetch<void>(
+        `/api/v1/plans/${plan.id}`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      setPlans((current) =>
+        current.filter((item) => item.id !== plan.id)
+      );
+
+      if (editingPlanId === plan.id) {
+        setEditingPlanId(null);
+        setForm(initialForm);
+      }
+
+      setMessage(`${plan.name} was deleted.`);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Could not delete plan."
+      );
     }
   }
 
@@ -502,6 +556,12 @@ export default function PlansPage() {
         onSubmit={submit}
         className="panel mt-6 grid gap-5 p-5 md:grid-cols-3"
       >
+        {editingPlanId ? (
+          <div className="md:col-span-3 rounded-md border border-amber-400/30 bg-amber-400/10 p-3 text-sm text-amber-100">
+            Editing plan. Save changes or cancel to create a new plan.
+          </div>
+        ) : null}
+
         <label className="text-sm font-medium text-ink">
           Plan name
 
@@ -711,9 +771,22 @@ export default function PlansPage() {
             }
           >
             {submitting
-              ? "Creating..."
-              : "Create plan"}
+              ? "Saving..."
+              : editingPlanId
+                ? "Save changes"
+                : "Create plan"}
           </button>
+
+          {editingPlanId ? (
+            <button
+              className="btn-secondary ml-3"
+              type="button"
+              onClick={cancelEdit}
+              disabled={submitting}
+            >
+              Cancel
+            </button>
+          ) : null}
         </div>
       </form>
 
@@ -735,7 +808,7 @@ export default function PlansPage() {
                   key={
                     plan.id
                   }
-                  className="grid gap-4 p-4 text-sm md:grid-cols-7 md:items-center"
+                  className="grid gap-4 p-4 text-sm md:grid-cols-[1.2fr_repeat(6,minmax(0,1fr))_auto] md:items-center"
                 >
                   <span className="font-semibold text-ink">
                     {
@@ -783,6 +856,24 @@ export default function PlansPage() {
                     1
                       ? "device"
                       : "devices"}
+                  </span>
+
+                  <span className="flex flex-wrap gap-2">
+                    <button
+                      className="btn-secondary px-3 py-1.5"
+                      type="button"
+                      onClick={() => startEdit(plan)}
+                    >
+                      Edit
+                    </button>
+
+                    <button
+                      className="btn-secondary px-3 py-1.5 text-red-300"
+                      type="button"
+                      onClick={() => deletePlan(plan)}
+                    >
+                      Delete
+                    </button>
                   </span>
                 </div>
               )
