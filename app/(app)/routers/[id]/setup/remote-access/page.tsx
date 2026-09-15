@@ -219,7 +219,7 @@ NOBLIFI_RADIUS_SERVER=10.77.0.1`}
                     <div>
                       <h2 className="text-lg font-semibold text-ink">2. Emergency manual recovery only</h2>
                       <p className="mt-1 text-sm text-muted">
-                        The xneelo agent normally installs this peer automatically. Use this command only to recover a failed agent path.
+                        The noblifi-agent service normally installs this peer automatically. Use this command only to recover a failed agent path.
                       </p>
                     </div>
                     <CodeBlock code={wireGuard.vps_peer_command ?? ""} />
@@ -234,7 +234,7 @@ NOBLIFI_RADIUS_SERVER=10.77.0.1`}
                     <p className={`rounded-md border p-4 text-sm ${wireGuardStatus === "connected" ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-200" : "border-cyan-300/30 bg-cyan-300/10 text-cyan-100"}`}>
                       {wireGuardStatus === "connected"
                         ? "WireGuard handshake verified. The VPS can reach this MikroTik over its private tunnel address."
-                        : "Waiting for the xneelo agent to install the peer and for the MikroTik to report a current handshake."}
+                        : "Waiting for the noblifi-agent service to install the peer and for the MikroTik to report a current handshake."}
                     </p>
                     <button
                       type="button"
