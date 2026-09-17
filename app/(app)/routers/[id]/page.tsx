@@ -32,6 +32,8 @@ type RouterDetail = {
   wire_guard_last_handshake_at?: string;
   wire_guard_last_error?: string;
   remote_access_status?: string;
+  remote_access_host?: string;
+  remote_winbox_port?: number;
   claim_token: string;
   config_status?: string;
   interfaces?: Array<{ name: string; type?: string; mac_address?: string; running: boolean; disabled: boolean }>;
@@ -95,8 +97,9 @@ export default function RouterDetailPage({ params }: { params: Promise<{ id: str
   const isLinked = Boolean(router.serial_number || router.model || router.routeros_version || interfaces.length || router.status === "online" || router.status === "linked" || router.status === "provisioned");
   const canEnableWinbox = ["online", "recovering", "degraded"].includes((router.health_status ?? "").toLowerCase());
   const isOnline = (router.health_status ?? router.status).toLowerCase() === "online";
-  const winboxHost = hostOnly(router.wireguard_tunnel_ip);
-  const winboxAddress = router.remote_access_status === "active" && winboxHost ? `${winboxHost}:8291` : "";
+  const winboxAddress = router.remote_access_status === "active" && router.remote_access_host && router.remote_winbox_port
+    ? `${router.remote_access_host}:${router.remote_winbox_port}`
+    : "";
 
   async function enableWinbox() {
     setWinboxMessage("");
@@ -104,7 +107,7 @@ export default function RouterDetailPage({ params }: { params: Promise<{ id: str
       method: "POST",
       body: JSON.stringify({})
     });
-    setWinboxMessage(`WinBox access ${response.status}. Connect through WireGuard to ${response.host}:${response.port}.`);
+    setWinboxMessage(`WinBox relay ${response.status}. Connect WinBox to ${response.host}:${response.port}.`);
     load();
   }
 

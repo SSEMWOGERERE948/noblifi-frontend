@@ -14,7 +14,6 @@ const textFields = [
   ["api_username", "API username"],
   ["api_password", "API password"],
   ["hotspot_portal_name", "Captive portal name"],
-  ["hotspot_template_key", "Captive portal template"],
   ["hotspot_dns_name", "HotSpot DNS name"],
   ["hotspot_bridge", "HotSpot bridge"],
   ["staff_bridge", "Staff bridge"],
@@ -36,10 +35,10 @@ const textFields = [
 ];
 
 const portalTemplates = [
-  { key: "clean", name: "Clean Access", tone: "bg-sky-400", description: "Clear voucher login with cool blue accents." },
-  { key: "fresh", name: "Fresh Market", tone: "bg-emerald-300", description: "Green and aqua theme for cafes, salons, and public spaces." },
-  { key: "sunrise", name: "Sunrise Lounge", tone: "bg-amber-300", description: "Warm premium look for hotels, restaurants, and event venues." },
-  { key: "royal", name: "Royal Night", tone: "bg-violet-300", description: "Deep polished theme for bars, lounges, and late-night venues." }
+  { key: "clean", name: "Clean Access", colors: ["#06111f", "#0b1727", "#7dd3fc"], description: "Clear voucher login with cool blue accents." },
+  { key: "fresh", name: "Fresh Market", colors: ["#f1fbf7", "#ffffff", "#059669"], description: "Green and aqua theme for cafes, salons, and public spaces." },
+  { key: "sunrise", name: "Sunrise Lounge", colors: ["#fff8ed", "#ffffff", "#e05d2f"], description: "Warm premium look for hotels, restaurants, and event venues." },
+  { key: "royal", name: "Royal Night", colors: ["#110d1c", "#1e1730", "#c4a7ff"], description: "Deep polished theme for bars, lounges, and late-night venues." }
 ];
 
 export default function NetworkProfilePage({ params }: { params: Promise<{ id: string }> }) {
@@ -90,7 +89,12 @@ export default function NetworkProfilePage({ params }: { params: Promise<{ id: s
         </div>
       </div>
 
-      {!profile ? <p className="text-sm text-muted">Loading profile...</p> : null}
+      {!profile ? (
+        <div className="space-y-4" aria-label="Loading network profile">
+          <div className="panel h-56 animate-pulse bg-soft" />
+          <div className="panel h-72 animate-pulse bg-soft" />
+        </div>
+      ) : null}
 
       {profile ? (
         <div className="space-y-6">
@@ -107,7 +111,13 @@ export default function NetworkProfilePage({ params }: { params: Promise<{ id: s
                     type="button"
                     onClick={() => setValue("hotspot_template_key", template.key)}
                   >
-                    <span className={`mb-4 block h-16 rounded-md ${template.tone}`} />
+                    <span className="mb-4 block h-24 overflow-hidden rounded-md p-3" style={{ background: template.colors[0] }}>
+                      <span className="mx-auto block h-full max-w-28 rounded border p-2" style={{ background: template.colors[1], borderColor: template.colors[2] }}>
+                        <span className="block h-2 w-8 rounded" style={{ background: template.colors[2] }} />
+                        <span className="mt-3 block h-2 w-full rounded bg-black/10" />
+                        <span className="mt-2 block h-4 w-full rounded" style={{ background: template.colors[2] }} />
+                      </span>
+                    </span>
                     <span className="block font-semibold text-ink">{template.name}</span>
                     <span className="mt-2 block text-xs leading-5 text-muted">{template.description}</span>
                   </button>
