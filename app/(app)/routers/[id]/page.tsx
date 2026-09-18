@@ -97,9 +97,10 @@ export default function RouterDetailPage({ params }: { params: Promise<{ id: str
   const isLinked = Boolean(router.serial_number || router.model || router.routeros_version || interfaces.length || router.status === "online" || router.status === "linked" || router.status === "provisioned");
   const canEnableWinbox = ["online", "recovering", "degraded"].includes((router.health_status ?? "").toLowerCase());
   const isOnline = (router.health_status ?? router.status).toLowerCase() === "online";
-  const configuredWinboxAddress = router.remote_access_host && router.remote_winbox_port
+  const directWinboxAddress = router.wireguard_tunnel_ip ? `${router.wireguard_tunnel_ip}:8291` : "";
+  const configuredWinboxAddress = router.remote_access_host && router.remote_winbox_port && !directWinboxAddress
     ? `${router.remote_access_host}:${router.remote_winbox_port}`
-    : "";
+    : directWinboxAddress;
   const winboxAddress = router.remote_access_status === "active" ? configuredWinboxAddress : "";
 
   async function enableWinbox() {
@@ -224,8 +225,8 @@ export default function RouterDetailPage({ params }: { params: Promise<{ id: str
             {[
               ["Status", titleCase(router.remote_access_status ?? "disabled")],
               ["Connect To", configuredWinboxAddress || "-"],
-              ["Port", router.remote_winbox_port ? String(router.remote_winbox_port) : "-"],
-              ["VPN", configuredWinboxAddress ? "Not required" : "-"],
+              ["Port", directWinboxAddress ? "8291" : router.remote_winbox_port ? String(router.remote_winbox_port) : "-"],
+              ["VPN", directWinboxAddress ? "Required" : configuredWinboxAddress ? "Not required" : "-"],
               ...(router.remote_access_status === "failed"
                 ? [["Error", router.wire_guard_last_error || "The VPS agent could not start the WinBox relay."]]
                 : [])
