@@ -33,6 +33,7 @@ type RouterDetail = {
   wire_guard_last_error?: string;
   remote_access_status?: string;
   remote_access_host?: string;
+  remote_web_port?: number;
   remote_winbox_port?: number;
   claim_token: string;
   config_status?: string;
@@ -98,9 +99,12 @@ export default function RouterDetailPage({ params }: { params: Promise<{ id: str
   const canEnableWinbox = ["online", "recovering", "degraded"].includes((router.health_status ?? "").toLowerCase());
   const isOnline = (router.health_status ?? router.status).toLowerCase() === "online";
   const directWinboxAddress = router.wireguard_tunnel_ip ? `${router.wireguard_tunnel_ip}:8291` : "";
-  const configuredWinboxAddress = router.remote_access_host && router.remote_winbox_port && !directWinboxAddress
-    ? `${router.remote_access_host}:${router.remote_winbox_port}`
-    : directWinboxAddress;
+  const browserAccessAddress = router.remote_access_host && router.remote_web_port
+    ? `http://${router.remote_access_host}:${router.remote_web_port}`
+    : "";
+  const configuredWinboxAddress = browserAccessAddress || (router.remote_access_host && router.remote_winbox_port && !directWinboxAddress
+    ? `http://${router.remote_access_host}:${router.remote_winbox_port}`
+    : directWinboxAddress);
   const winboxAddress = router.remote_access_status === "active" ? configuredWinboxAddress : "";
 
   async function enableWinbox() {
@@ -109,7 +113,7 @@ export default function RouterDetailPage({ params }: { params: Promise<{ id: str
       method: "POST",
       body: JSON.stringify({})
     });
-    setWinboxMessage(`WinBox relay ${response.status}. Connect WinBox to ${response.host}:${response.port}.`);
+    setWinboxMessage(`Remote access ${response.status}. Open http://${response.host}:${response.port} in your browser.`);
     load();
   }
 
@@ -225,10 +229,10 @@ export default function RouterDetailPage({ params }: { params: Promise<{ id: str
             {[
               ["Status", titleCase(router.remote_access_status ?? "disabled")],
               ["Connect To", configuredWinboxAddress || "-"],
-              ["Port", directWinboxAddress ? "8291" : router.remote_winbox_port ? String(router.remote_winbox_port) : "-"],
-              ["VPN", directWinboxAddress ? "Required" : configuredWinboxAddress ? "Not required" : "-"],
+              ["Port", browserAccessAddress ? String(router.remote_web_port ?? router.remote_winbox_port ?? "-") : directWinboxAddress ? "8291" : router.remote_winbox_port ? String(router.remote_winbox_port) : "-"],
+              ["VPN", directWinboxAddress && !browserAccessAddress ? "Required" : configuredWinboxAddress ? "Not required" : "-"],
               ...(router.remote_access_status === "failed"
-                ? [["Error", router.wire_guard_last_error || "The VPS agent could not start the WinBox relay."]]
+                ? [["Error", router.wire_guard_last_error || "The VPS agent could not start the remote access relay."]]
                 : [])
             ].map(([labelText, value]) => (
               <div key={labelText} className="flex justify-between gap-4 border-b border-line pb-2">
