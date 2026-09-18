@@ -97,9 +97,10 @@ export default function RouterDetailPage({ params }: { params: Promise<{ id: str
   const isLinked = Boolean(router.serial_number || router.model || router.routeros_version || interfaces.length || router.status === "online" || router.status === "linked" || router.status === "provisioned");
   const canEnableWinbox = ["online", "recovering", "degraded"].includes((router.health_status ?? "").toLowerCase());
   const isOnline = (router.health_status ?? router.status).toLowerCase() === "online";
-  const winboxAddress = router.remote_access_status === "active" && router.remote_access_host && router.remote_winbox_port
+  const configuredWinboxAddress = router.remote_access_host && router.remote_winbox_port
     ? `${router.remote_access_host}:${router.remote_winbox_port}`
     : "";
+  const winboxAddress = router.remote_access_status === "active" ? configuredWinboxAddress : "";
 
   async function enableWinbox() {
     setWinboxMessage("");
@@ -222,13 +223,16 @@ export default function RouterDetailPage({ params }: { params: Promise<{ id: str
           <dl className="mt-4 grid gap-3 text-sm">
             {[
               ["Status", titleCase(router.remote_access_status ?? "disabled")],
-              ["Connect To", winboxAddress || "-"],
-              ["Port", "8291"],
-              ["VPN", "Required"]
+              ["Connect To", configuredWinboxAddress || "-"],
+              ["Port", router.remote_winbox_port ? String(router.remote_winbox_port) : "-"],
+              ["VPN", configuredWinboxAddress ? "Not required" : "-"],
+              ...(router.remote_access_status === "failed"
+                ? [["Error", router.wire_guard_last_error || "The VPS agent could not start the WinBox relay."]]
+                : [])
             ].map(([labelText, value]) => (
               <div key={labelText} className="flex justify-between gap-4 border-b border-line pb-2">
                 <dt className="text-muted">{labelText}</dt>
-                <dd className="font-medium text-ink">{value}</dd>
+                <dd className="max-w-[65%] break-words text-right font-medium text-ink">{value}</dd>
               </div>
             ))}
           </dl>
