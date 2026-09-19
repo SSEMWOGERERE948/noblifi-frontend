@@ -16,7 +16,7 @@ export default function RemoteAccessPage({
 }) {
   const { id } = use(params);
   const router = useRouter();
-  const [method, setMethod] = useState<RemoteAccessMethod>("wireguard");
+  const [method, setMethod] = useState<RemoteAccessMethod>("bootstrap");
   const [host, setHost] = useState("192.168.88.1");
   const [apiPort, setApiPort] = useState("8728");
   const [username, setUsername] = useState("admin");
@@ -96,23 +96,23 @@ export default function RemoteAccessPage({
   return (
     <SetupShell
       title="Secure Remote Access"
-      description="Connect the MikroTik to the NobliFi VPS before configuring ports, HotSpot, and RADIUS."
+      description="Register the MikroTik with the bootstrap script before configuring ports, HotSpot, and RADIUS."
       current="remote_access"
     >
       <form onSubmit={submit} className="space-y-6">
         <div className="grid gap-4 xl:grid-cols-3">
           <SelectableCard
-            title="WireGuard VPS"
-            badge="Recommended"
-            description="Create a persistent management tunnel to the VPS. RADIUS and RouterOS management use private tunnel addresses."
-            selected={method === "wireguard"}
-            onSelect={() => setMethod("wireguard")}
-          />
-          <SelectableCard
             title="Bootstrap Only"
+            badge="Recommended"
             description="Register the router and discover its real model, RouterOS version, and physical ports before service setup."
             selected={method === "bootstrap"}
             onSelect={() => setMethod("bootstrap")}
+          />
+          <SelectableCard
+            title="WireGuard VPS"
+            description="Create an optional persistent management tunnel to the VPS using private tunnel addresses."
+            selected={method === "wireguard"}
+            onSelect={() => setMethod("wireguard")}
           />
           <SelectableCard
             title="Direct API Access"

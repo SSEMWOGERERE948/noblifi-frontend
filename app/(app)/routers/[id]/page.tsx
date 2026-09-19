@@ -54,6 +54,7 @@ export default function RouterDetailPage({ params }: { params: Promise<{ id: str
   const [router, setRouter] = useState<RouterDetail | null>(null);
   const [revenue, setRevenue] = useState<RouterRevenue | null>(null);
   const [error, setError] = useState("");
+  const [webMessage, setWebMessage] = useState("");
   const [winboxMessage, setWinboxMessage] = useState("");
   const [deleteMessage, setDeleteMessage] = useState("");
   const [deleteChallenge, setDeleteChallenge] = useState<{ challenge_id: string; expected_confirmation: string; router_name: string; expires_at: string } | null>(null);
@@ -96,16 +97,40 @@ export default function RouterDetailPage({ params }: { params: Promise<{ id: str
 
   const interfaces = router.interfaces ?? [];
   const isLinked = Boolean(router.serial_number || router.model || router.routeros_version || interfaces.length || router.status === "online" || router.status === "linked" || router.status === "provisioned");
-  const canEnableWinbox = ["online", "recovering", "degraded"].includes((router.health_status ?? "").toLowerCase());
+  const canEnableRemoteAccess = ["online", "recovering", "degraded"].includes((router.health_status ?? "").toLowerCase());
   const isOnline = (router.health_status ?? router.status).toLowerCase() === "online";
-  const directWinboxAddress = router.wireguard_tunnel_ip ? `${router.wireguard_tunnel_ip}:8291` : "";
-  const browserAccessAddress = router.remote_access_host && router.remote_web_port
+  const configuredWinboxAddress = router.remote_access_host && router.remote_winbox_port
+    ? `${router.remote_access_host}:${router.remote_winbox_port}`
+    : "";
+  const winboxStatus = configuredWinboxAddress ? remoteAccessStatusLabel(router.remote_access_status) : "Disabled";
+  const winboxAddress = router.remote_access_status === "active" ? configuredWinboxAddress : "";
+  const configuredWebURL = router.remote_access_host && router.remote_web_port
     ? `http://${router.remote_access_host}:${router.remote_web_port}`
     : "";
-  const configuredWinboxAddress = browserAccessAddress || (router.remote_access_host && router.remote_winbox_port && !directWinboxAddress
-    ? `http://${router.remote_access_host}:${router.remote_winbox_port}`
-    : directWinboxAddress);
-  const winboxAddress = router.remote_access_status === "active" ? configuredWinboxAddress : "";
+  const webURL = router.remote_access_status === "active" ? configuredWebURL : "";
+  const webStatus = configuredWebURL ? remoteAccessStatusLabel(router.remote_access_status) : "Disabled";
+
+  async function enableWebFig() {
+    setWebMessage("");
+    try {
+      const response = await apiFetch<{ url: string; host: string; port: number; status: string }>(`/api/v1/routers/${id}/remote-access/web`, {
+        method: "POST",
+        body: JSON.stringify({})
+      });
+      setRouter((current) => current
+        ? {
+            ...current,
+            remote_access_status: response.status,
+            remote_access_host: response.host,
+            remote_web_port: response.port
+          }
+        : current);
+      setWebMessage(`WebFig access ${response.status}. The browser link will be ready when the relay becomes active.`);
+      void load();
+    } catch (err) {
+      setWebMessage(err instanceof Error ? err.message : "Could not enable WebFig access.");
+    }
+  }
 
   async function enableWinbox() {
     setWinboxMessage("");
@@ -113,13 +138,25 @@ export default function RouterDetailPage({ params }: { params: Promise<{ id: str
       method: "POST",
       body: JSON.stringify({})
     });
-    setWinboxMessage(`Remote access ${response.status}. Open http://${response.host}:${response.port} in your browser.`);
-    load();
+    setRouter((current) => current
+      ? {
+          ...current,
+          remote_access_status: response.status,
+          remote_access_host: response.host,
+          remote_winbox_port: response.port
+        }
+      : current);
+    const connectTo = response.host && response.port
+      ? `${response.host}:${response.port}`
+      : configuredWinboxAddress || "Not available";
+    setWinboxMessage(`Remote access ${response.status}. Connect WinBox to ${connectTo}.`);
+    void load();
   }
 
-  async function disableWinbox() {
+  async function disableRemoteAccess() {
     await apiFetch<void>(`/api/v1/routers/${id}/remote-access`, { method: "DELETE" });
-    setWinboxMessage("WinBox remote access disabled.");
+    setWebMessage("Remote access disabled.");
+    setWinboxMessage("Remote access disabled.");
     load();
   }
 
@@ -223,14 +260,51 @@ export default function RouterDetailPage({ params }: { params: Promise<{ id: str
           </dl>
         </div>
         <div className="panel p-5">
+          <h2 className="text-lg font-semibold text-ink">WebFig Remote Access</h2>
+          {webMessage ? <p className="mt-3 rounded-md border border-line bg-soft p-3 text-sm text-accent">{webMessage}</p> : null}
+          <dl className="mt-4 grid gap-3 text-sm">
+            {[
+              ["Status", webStatus],
+              ["Browser Link", configuredWebURL || "-"],
+              ["Port", router.remote_web_port ? String(router.remote_web_port) : "-"],
+              ...(router.remote_access_status === "failed"
+                ? [["Error", router.wire_guard_last_error || "The VPS agent could not start the WebFig relay."]]
+                : [])
+            ].map(([labelText, value]) => (
+              <div key={labelText} className="flex justify-between gap-4 border-b border-line pb-2">
+                <dt className="text-muted">{labelText}</dt>
+                <dd className="max-w-[65%] break-all text-right font-medium text-ink">{value}</dd>
+              </div>
+            ))}
+          </dl>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button className="btn-secondary" type="button" disabled={!canEnableRemoteAccess} onClick={enableWebFig}>
+              Enable WebFig Access
+            </button>
+            <button className="btn-secondary" type="button" onClick={disableRemoteAccess}>
+              Revoke All Remote Access
+            </button>
+            {webURL ? (
+              <>
+                <button className="btn-secondary" type="button" onClick={() => navigator.clipboard.writeText(webURL)}>
+                  Copy Link
+                </button>
+                <a className="btn" href={webURL} target="_blank" rel="noreferrer">
+                  Open WebFig
+                </a>
+              </>
+            ) : null}
+          </div>
+        </div>
+        <div className="panel p-5">
           <h2 className="text-lg font-semibold text-ink">WinBox Remote Access</h2>
           {winboxMessage ? <p className="mt-3 rounded-md border border-line bg-soft p-3 text-sm text-accent">{winboxMessage}</p> : null}
           <dl className="mt-4 grid gap-3 text-sm">
             {[
-              ["Status", titleCase(router.remote_access_status ?? "disabled")],
+              ["Status", winboxStatus],
               ["Connect To", configuredWinboxAddress || "-"],
-              ["Port", browserAccessAddress ? String(router.remote_web_port ?? router.remote_winbox_port ?? "-") : directWinboxAddress ? "8291" : router.remote_winbox_port ? String(router.remote_winbox_port) : "-"],
-              ["VPN", directWinboxAddress && !browserAccessAddress ? "Required" : configuredWinboxAddress ? "Not required" : "-"],
+              ["Port", router.remote_winbox_port ? String(router.remote_winbox_port) : "-"],
+              ["VPN", configuredWinboxAddress ? "Not Required" : "-"],
               ...(router.remote_access_status === "failed"
                 ? [["Error", router.wire_guard_last_error || "The VPS agent could not start the remote access relay."]]
                 : [])
@@ -242,11 +316,11 @@ export default function RouterDetailPage({ params }: { params: Promise<{ id: str
             ))}
           </dl>
           <div className="mt-4 flex flex-wrap gap-2">
-            <button className="btn-secondary" type="button" disabled={!canEnableWinbox} onClick={enableWinbox}>
+            <button className="btn-secondary" type="button" disabled={!canEnableRemoteAccess} onClick={enableWinbox}>
               Enable WinBox Access
             </button>
-            <button className="btn-secondary" type="button" onClick={disableWinbox}>
-              Revoke Access
+            <button className="btn-secondary" type="button" onClick={disableRemoteAccess}>
+              Revoke All Remote Access
             </button>
             {winboxAddress ? (
               <button className="btn" type="button" onClick={() => navigator.clipboard.writeText(winboxAddress)}>
@@ -336,6 +410,21 @@ export default function RouterDetailPage({ params }: { params: Promise<{ id: str
 
 function titleCase(value: string) {
   return value ? value.charAt(0).toUpperCase() + value.slice(1).toLowerCase() : "Pending";
+}
+
+function remoteAccessStatusLabel(value?: string) {
+  switch ((value ?? "disabled").toLowerCase()) {
+    case "active":
+      return "Active";
+    case "queued":
+      return "Enabling...";
+    case "failed":
+      return "Failed";
+    case "disabled":
+    case "revoked":
+    default:
+      return "Disabled";
+  }
 }
 
 function label(value: string) {
