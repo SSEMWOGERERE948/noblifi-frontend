@@ -135,9 +135,33 @@ export default function Home() {
 
       <section id="contact" className="mx-auto max-w-7xl px-5 py-16 text-center">
         <h2 className="text-4xl font-black tracking-normal">Run Your WiFi with NobliFi</h2>
-        <div className="mt-8 flex justify-center gap-3">
+        <p className="mx-auto mt-4 max-w-2xl text-lg text-muted">
+          Need setup help, billing support, or a custom hotspot solution? Reach the NobliFi team directly.
+        </p>
+        <div className="mt-8 flex flex-wrap justify-center gap-3">
           <Link href="/signup" className="btn px-5 py-3">Create Account</Link>
           <Link href="/login" className="btn-secondary px-5 py-3">Sign In</Link>
+        </div>
+        <div className="mt-8 grid gap-3 text-left sm:grid-cols-2 lg:grid-cols-4">
+          <a href="mailto:customersupport@noblifi.com" className="panel block p-4 text-sm text-muted transition hover:border-brand/50 hover:text-ink">
+            <p className="font-semibold text-ink">Email</p>
+            <p className="mt-2">customersupport@noblifi.com</p>
+          </a>
+          <a href="https://wa.me/254709343238" target="_blank" rel="noreferrer" className="panel block p-4 text-sm text-muted transition hover:border-brand/50 hover:text-ink">
+            <p className="font-semibold text-ink">WhatsApp</p>
+            <p className="mt-2">+254 709 343 238</p>
+          </a>
+          <a href="https://instagram.com/noblifi" target="_blank" rel="noreferrer" className="panel block p-4 text-sm text-muted transition hover:border-brand/50 hover:text-ink">
+            <p className="font-semibold text-ink">Instagram</p>
+            <p className="mt-2">@noblifi</p>
+          </a>
+          <a href="https://x.com/noblifi" target="_blank" rel="noreferrer" className="panel block p-4 text-sm text-muted transition hover:border-brand/50 hover:text-ink">
+            <p className="font-semibold text-ink">X / Twitter</p>
+            <p className="mt-2">@noblifi</p>
+          </a>
+        </div>
+        <div className="mt-4 panel p-4 text-sm text-muted">
+          TikTok: <a href="https://tiktok.com/@noblifi" target="_blank" rel="noreferrer" className="font-semibold text-brand">@noblifi</a> • NobliFi billing system
         </div>
       </section>
 

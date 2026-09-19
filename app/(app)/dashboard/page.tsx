@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { PageHeader } from "@/components/PageHeader";
 import { apiFetch } from "@/lib/api";
+import { formatUsageBytes } from "@/lib/receipt";
 
 type RouterRow = { id: string; name: string; status: string; site_name?: string };
 type Plan = { id: string; name: string; price: number; duration_minutes: number; max_devices: number };
@@ -12,6 +13,13 @@ type RevenueSummary = { currency: string; month_revenue: number; today_revenue: 
 type SalesSummary = { currency: string; gross_sales: number; platform_fees: number; merchant_net: number; physical_sales: number };
 type WalletSummary = { currency: string; available: number; pending_withdrawals: number };
 
+type StatsSummary = {
+  routers: { total: number; online: number };
+  users: { total: number; active_sessions: number };
+  data_usage: { upload_bytes: number; download_bytes: number; total_bytes: number };
+  router_cpu_usage?: unknown;
+};
+
 export default function DashboardPage() {
   const [routers, setRouters] = useState<RouterRow[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -19,6 +27,7 @@ export default function DashboardPage() {
   const [revenue, setRevenue] = useState<RevenueSummary | null>(null);
   const [sales, setSales] = useState<SalesSummary | null>(null);
   const [wallet, setWallet] = useState<WalletSummary | null>(null);
+  const [stats, setStats] = useState<StatsSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -35,15 +44,23 @@ export default function DashboardPage() {
       }),
       apiFetch<WalletSummary>("/api/v1/wallet", {
         fallback: { currency: "UGX", available: 0, pending_withdrawals: 0 }
+      }),
+      apiFetch<StatsSummary>("/api/v1/dashboard/stats", {
+        fallback: {
+          routers: { total: 0, online: 0 },
+          users: { total: 0, active_sessions: 0 },
+          data_usage: { upload_bytes: 0, download_bytes: 0, total_bytes: 0 }
+        }
       })
     ])
-      .then(([routerData, planData, voucherData, revenueData, salesData, walletData]) => {
+      .then(([routerData, planData, voucherData, revenueData, salesData, walletData, statsData]) => {
         setRouters(routerData);
         setPlans(planData);
         setVouchers(voucherData);
         setRevenue(revenueData);
         setSales(salesData);
         setWallet(walletData);
+        setStats(statsData);
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Could not load dashboard."))
       .finally(() => setLoading(false));
@@ -53,11 +70,18 @@ export default function DashboardPage() {
   const unusedVouchers = vouchers.filter((voucher) => voucher.status?.toLowerCase() === "unused").length;
   const activePlans = plans.filter((plan) => plan?.duration_minutes > 0).length;
 
-  const stats = [
+  const statsCards = [
     { label: "Online routers", value: String(onlineRouters) },
     { label: "Active plans", value: String(activePlans) },
     { label: "Unused vouchers", value: String(unusedVouchers) },
     { label: "Total routers", value: String(routers.length) }
+  ];
+
+  const usageCards = [
+    { label: "Upload", value: formatUsageBytes(stats?.data_usage?.upload_bytes ?? 0) },
+    { label: "Download", value: formatUsageBytes(stats?.data_usage?.download_bytes ?? 0) },
+    { label: "Total traffic", value: formatUsageBytes(stats?.data_usage?.total_bytes ?? 0) },
+    { label: "Active sessions", value: String(stats?.users?.active_sessions ?? 0) }
   ];
 
   return (
@@ -72,12 +96,21 @@ export default function DashboardPage() {
                 <div className="mt-5 h-9 w-16 rounded bg-slate-200/70" />
               </div>
             ))
-          : stats.map((stat) => (
+          : statsCards.map((stat) => (
               <div key={stat.label} className="panel p-5">
                 <p className="text-sm font-medium text-muted">{stat.label}</p>
                 <p className="mt-3 text-3xl font-semibold text-ink">{stat.value}</p>
               </div>
             ))}
+      </section>
+
+      <section className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {usageCards.map((stat) => (
+          <div key={stat.label} className="panel p-5">
+            <p className="text-sm font-medium text-muted">{stat.label}</p>
+            <p className="mt-3 text-2xl font-semibold text-ink">{stat.value}</p>
+          </div>
+        ))}
       </section>
       <section className="panel mt-5 p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

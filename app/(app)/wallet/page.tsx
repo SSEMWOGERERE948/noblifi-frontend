@@ -102,6 +102,14 @@ type WithdrawalCodeResponse = {
   expires_at: string;
 };
 
+type WithdrawalRecipientLookup = {
+  destination: string;
+  account_name: string;
+  known: boolean;
+  verified: boolean;
+  source: string;
+};
+
 type PlatformRevenueSummary = {
   currency: string;
   online_token_purchases: number;
@@ -221,6 +229,11 @@ export default function WalletPage() {
   const [
     code,
     setCode
+  ] = useState("");
+
+  const [
+    recipientPreview,
+    setRecipientPreview
   ] = useState("");
 
   const [
@@ -374,6 +387,31 @@ export default function WalletPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    const normalized = destination.trim();
+    if (!normalized) {
+      setRecipientPreview("");
+      return;
+    }
+
+    const timer = window.setTimeout(async () => {
+      try {
+        const lookup = await apiFetch<WithdrawalRecipientLookup>(`/api/v1/wallet/withdraw/recipient?destination=${encodeURIComponent(normalized)}`);
+
+        if (lookup.account_name) {
+          setRecipientPreview(`Recipient name: ${lookup.account_name}. Please confirm this matches the Mobile Money account before completing the withdrawal.`);
+          return;
+        }
+
+        setRecipientPreview("No verified payee name was found for this Mobile Money number yet. Please confirm the number carefully before withdrawing.");
+      } catch {
+        setRecipientPreview("");
+      }
+    }, 350);
+
+    return () => window.clearTimeout(timer);
+  }, [destination]);
 
   /* =======================================================
    * REFRESH WITHDRAWAL STATUS
@@ -1161,6 +1199,9 @@ export default function WalletPage() {
             and that name appears on the
             withdrawal receipt.
           </p>
+          {recipientPreview ? (
+            <p className="mt-3 text-sm text-amber-100">{recipientPreview}</p>
+          ) : null}
         </div>
 
         {/* =================================================

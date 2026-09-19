@@ -12,9 +12,18 @@ export type AuthUser = {
   email_verified_at: string | null;
 };
 
-type AuthResponse = {
+export type AuthResponse = {
   token: string;
   user: AuthUser;
+};
+
+export type LoginResponse = {
+  mfa_required?: boolean;
+  email?: string;
+  message?: string;
+  delivery?: CodeDelivery;
+  token?: string;
+  user?: AuthUser;
 };
 
 type CodeDelivery = {
@@ -62,7 +71,11 @@ export function clearSession() {
 }
 
 export async function login(email: string, password: string) {
-  return authRequest("/api/v1/auth/login", { email, password });
+  return request<LoginResponse>("/api/v1/auth/login", { email, password });
+}
+
+export async function verifyLoginMFA(email: string, code: string) {
+  return request<AuthResponse>("/api/v1/auth/login/verify", { email, code });
 }
 
 export async function signup(name: string, email: string, password: string, hotspotName: string) {
